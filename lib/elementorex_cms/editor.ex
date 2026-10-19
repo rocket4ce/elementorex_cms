@@ -52,7 +52,7 @@ defmodule ElementorexCms.Editor do
       ignored unless `remount_key` changes)
     * `title`, `subtitle`, `back` (path of the back link)
     * `canvas` - `ElementorexCms.Canvas` configuration
-    * `registry` - `ElementorexCms.Registry` (default: `Registry.default/0`)
+    * `registry` - `ElementorexCms.Registry` (default: `ElementorexCms.Registry.default/0`)
     * `templates` - template modules (default: the configured ones)
     * `media`, `media_context` - see `ElementorexCms.Media`
     * `data` - passed to the blocks as `@ctx.data`
@@ -133,6 +133,8 @@ defmodule ElementorexCms.Editor do
        palette_query: "",
        history: History.new(),
        dirty: false,
+       saved_doc: nil,
+       pending_save: nil,
        saving: false,
        save_error: nil,
        notice: nil,
@@ -152,11 +154,21 @@ defmodule ElementorexCms.Editor do
 
   @impl true
   def update(%{__saved__: true}, socket) do
-    {:ok, assign(socket, dirty: false, saving: false, save_error: nil, notice: {:ok, "Saved"})}
+    saved = socket.assigns.pending_save || socket.assigns.doc
+
+    {:ok,
+     assign(socket,
+       saved_doc: saved,
+       pending_save: nil,
+       dirty: socket.assigns.doc != saved,
+       saving: false,
+       save_error: nil,
+       notice: {:ok, "Saved"}
+     )}
   end
 
   def update(%{__save_error__: message}, socket) do
-    {:ok, assign(socket, saving: false, save_error: message)}
+    {:ok, assign(socket, saving: false, pending_save: nil, save_error: message)}
   end
 
   def update(%{__replace__: document}, socket) do
@@ -198,6 +210,7 @@ defmodule ElementorexCms.Editor do
         |> assign(:remount_key, assigns[:remount_key])
         |> assign(:history, History.new())
         |> assign(:selected, nil)
+        |> then(&assign(&1, :saved_doc, &1.assigns.doc))
         |> assign(:dirty, false)
         |> then(&if(connected?(&1), do: push_canvas(&1), else: &1))
       else
@@ -698,7 +711,7 @@ defmodule ElementorexCms.Editor do
 
   def handle_event("save", _params, socket) do
     send(self(), {__MODULE__, socket.assigns.id, {:save, socket.assigns.doc}})
-    {:noreply, assign(socket, saving: true, save_error: nil)}
+    {:noreply, assign(socket, saving: true, save_error: nil, pending_save: socket.assigns.doc)}
   end
 
   # Forms of the inspector submit on Enter; nothing to do.
@@ -770,7 +783,7 @@ defmodule ElementorexCms.Editor do
     socket
     |> assign(:doc, doc)
     |> assign(:history, History.push(socket.assigns.history, old, label, key))
-    |> assign(:dirty, true)
+    |> assign(:dirty, doc != socket.assigns.saved_doc)
     |> assign(:notice, nil)
     |> notify_change()
     |> push_canvas()
@@ -780,7 +793,12 @@ defmodule ElementorexCms.Editor do
     selected = if Document.get(doc, socket.assigns.selected), do: socket.assigns.selected
 
     socket
-    |> assign(doc: doc, history: history, selected: selected, dirty: true)
+    |> assign(
+      doc: doc,
+      history: history,
+      selected: selected,
+      dirty: doc != socket.assigns.saved_doc
+    )
     |> notify_change()
     |> push_canvas()
   end

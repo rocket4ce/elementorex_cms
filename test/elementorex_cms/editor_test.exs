@@ -286,6 +286,23 @@ defmodule ElementorexCms.EditorTest do
     assert has_element?(view, ".exr-code-line", "heading1")
   end
 
+  test "undoing back to the saved document is not an unsaved change" do
+    {view, _html} = mount_editor()
+    hook(view, "add", %{"type" => "badge"})
+    assert has_element?(view, "#editor[data-dirty=true]")
+
+    hook(view, "undo")
+    assert has_element?(view, "#editor[data-dirty=false]")
+
+    hook(view, "redo")
+    hook(view, "save")
+    assert_receive {:saved, _}
+    assert has_element?(view, "#editor[data-dirty=false]")
+
+    hook(view, "undo")
+    assert has_element?(view, "#editor[data-dirty=true]")
+  end
+
   test "saving sends the document to the host and shows the result" do
     {view, _html} = mount_editor()
     hook(view, "save")
