@@ -335,8 +335,9 @@ defmodule ElementorexCms.Editor.UI do
           phx-target={@myself}
           title={t("Preview")}
         >
-          <.i name={if(@preview, do: "eye-slash", else: "eye")} /><span class="exr-hide-sm">{if(
-            @preview, do: t("Exit preview"), else: t("Preview"))}</span>
+          <.i name={if(@preview, do: "eye-slash", else: "eye")} />
+          <span :if={@preview} class="exr-hide-sm">{t("Exit preview")}</span>
+          <span :if={!@preview} class="exr-hide-sm">{t("Preview")}</span>
         </button>
         {render_slot(@actions)}
         <button

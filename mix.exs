@@ -49,7 +49,8 @@ defmodule ElementorexCms.MixProject do
       maintainers: ["rocket4ce"],
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib assets/js priv/static package.json mix.exs README.md CHANGELOG.md LICENSE
+      files:
+        ~w(lib assets/js priv/static priv/heroicons package.json mix.exs README.md CHANGELOG.md LICENSE
                 .formatter.exs guides)
     ]
   end
