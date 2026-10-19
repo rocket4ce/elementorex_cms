@@ -329,6 +329,7 @@ defmodule ElementorexCms.Editor.UI do
           <.i name="code-bracket" /><span class="exr-hide-sm">{t("Code")}</span>
         </button>
         <button
+          id={"#{@id}-preview"}
           type="button"
           class={["exr-btn exr-ghost", @preview && "is-on"]}
           phx-click="toggle_preview"

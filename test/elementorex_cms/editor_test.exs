@@ -286,6 +286,19 @@ defmodule ElementorexCms.EditorTest do
     assert has_element?(view, ".exr-code-line", "heading1")
   end
 
+  test "the preview button switches the canvas to preview and back" do
+    {view, _html} = mount_editor()
+
+    view |> element("#editor-preview") |> render_click()
+    assert has_element?(view, ~s(#editor[data-preview="true"]))
+    assert has_element?(view, "#editor-preview", "Exit preview")
+
+    view |> element("#editor-preview") |> render_click()
+    assert has_element?(view, ~s(#editor[data-preview="false"]))
+    refute has_element?(view, "#editor-preview", "Exit preview")
+    assert has_element?(view, "#editor-preview", "Preview")
+  end
+
   test "undoing back to the saved document is not an unsaved change" do
     {view, _html} = mount_editor()
     hook(view, "add", %{"type" => "badge"})
