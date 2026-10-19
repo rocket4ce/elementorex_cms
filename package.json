@@ -1,0 +1,21 @@
+{
+  "name": "elementorex_cms",
+  "version": "0.1.0",
+  "description": "Visual drag & drop content editor for Phoenix LiveView. Shipped as plain ES modules inside the elementorex_cms Hex package.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./assets/js/elementorex/index.js",
+  "module": "./assets/js/elementorex/index.js",
+  "exports": {
+    ".": "./assets/js/elementorex/index.js",
+    "./runtime": "./assets/js/elementorex/runtime.js",
+    "./css": "./priv/static/elementorex.css"
+  },
+  "files": [
+    "assets/js/**",
+    "priv/static/*"
+  ],
+  "peerDependencies": {
+    "phoenix_live_view": ">=1.1.0"
+  }
+}

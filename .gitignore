@@ -22,3 +22,6 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 elementorex_cms-*.tar
 
+
+# npm (only used to run the JS unit tests)
+/node_modules/
