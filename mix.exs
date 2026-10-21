@@ -1,7 +1,7 @@
 defmodule ElementorexCms.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://github.com/rocket4ce/elementorex_cms"
 
   def project do
@@ -17,7 +17,7 @@ defmodule ElementorexCms.MixProject do
         "A visual, drag & drop content builder for Phoenix LiveView (in the spirit of " <>
           "Elementor): an editor with live canvas, DOM tree, inspector and HTML/CSS view, " <>
           "a JSON document model, daisyUI 5 + Heroicons blocks, dynamic content from your " <>
-          "Ecto schemas, safe server-side rendering and generators for custom blocks and templates.",
+          "Ecto schemas, safe server-side rendering and generators.",
       package: package(),
       docs: docs(),
       source_url: @source_url

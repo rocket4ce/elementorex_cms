@@ -11,11 +11,12 @@ with a live canvas that renders your site's own CSS.
   formatting bar, **drag and drop** between palette, canvas and tree, an
   **HTML / CSS / JSON** drawer, undo/redo with history, templates, keyboard
   shortcuts, image uploads and a media library.
-- **35 blocks** built with **daisyUI 5** and **Heroicons** (inline SVG, so any
+- **41 blocks** built with **daisyUI 5** and **Heroicons** (inline SVG, so any
   icon picked at runtime works): sections, flex containers, responsive grids,
   hero, headings, rich text, buttons, icon boxes, lists, alerts, badges, cards,
   stats, steps, countdown, accordion, tabs, timeline, rating, progress, avatar,
-  chat, testimonials, carousel, video, mockups, HTML, loop grid…
+  chat, testimonials, carousel, video, mockups, HTML, loop grid, filters for
+  visitors (search, choices, ranges, toggles, sort)…
 - **Dynamic content**: your Ecto schemas (from `mix phx.gen.live` or your own
   migrations) become collections the editor can list in a *Loop grid*; any prop
   of any block can show a field of the current item (with format, prefix and
@@ -41,7 +42,7 @@ with a live canvas that renders your site's own CSS.
 # mix.exs
 def deps do
   [
-    {:elementorex_cms, "~> 0.1"}
+    {:elementorex_cms, "~> 0.2"}
   ]
 end
 ```
