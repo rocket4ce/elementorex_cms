@@ -208,6 +208,13 @@ them, without changing the address. Without JavaScript, the button is a link
 to the next page. After each load the loop sends `elementorex:loaded` (with
 the new items in `detail.items`).
 
+With the runtime, the links of *Numbers* and *Previous / Next* also stay on
+the page: they fetch the other page, swap only the loop grid for the one in
+it, change the address to that page (replacing it, like filters do) and
+scroll to the start of the grid when it is out of view. The new grid sends
+`elementorex:paged` (with the address in `detail.url`). Without JavaScript
+they are plain links that reload the page.
+
 Numbered pages need to count the items: Ecto sources do it with a `count`
 query; your own sources implement `c:ElementorexCms.Source.count/2`
 (`ElementorexCms.Source.Query.count/4` counts a list). Without it, *Numbers*

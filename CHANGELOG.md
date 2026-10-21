@@ -13,9 +13,10 @@
   the item (*Advanced* tab); templates generated from each source;
   `mix elementorex.gen.source`.
 - Pagination of the *Loop grid*: numbers, previous/next or both (links with
-  the page of each loop, `?<id>[page]=2`), a *Load more* button and infinite
-  scroll (the runtime fetches the next page and appends its items; links
-  without JavaScript). `params` on `ElementorexCms.Components.document/1` and
+  the page of each loop, `?<id>[page]=2`, that the runtime follows in place,
+  swapping only the grid), a *Load more* button and infinite scroll (the
+  runtime fetches the next page and appends its items; links without
+  JavaScript). `params` on `ElementorexCms.Components.document/1` and
   `ElementorexCms.to_html/2`; optional `count/2` of sources.
 - Search and filters for visitors (`ElementorexCms.Filters`): the *Filters*
   form block and its fields (*Search box*, *Choice filter* with the values of

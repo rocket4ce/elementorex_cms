@@ -19,10 +19,10 @@ defmodule ElementorexCms.Blocks.Loop do
   top of its own query.
 
   *Numbers*, *Previous / Next* (or both) link to the other pages, keeping the
-  filters. *Load more button* and *Infinite scroll*
-  fetch the next page in the background and append its items (the runtime of
-  the site: the `ElementorexRuntime` hook or `initElementorex()`); without
-  JavaScript they are links to the next page. The page the loop shows comes
+  filters, and swap only the grid for the one of that page. *Load more button*
+  and *Infinite scroll* fetch the next page in the background and append its
+  items. Both run in the runtime of the site (the `ElementorexRuntime` hook or
+  `initElementorex()`); without JavaScript they are links to the other page. The page the loop shows comes
   from the `params` of the document:
 
       <ElementorexCms.Components.document document={@page.body} params={@params} />

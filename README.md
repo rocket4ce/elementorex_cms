@@ -66,8 +66,9 @@ const liveSocket = new LiveSocket("/live", Socket, {
 ```
 
 `hooks` has `ElementorexEditor` (the editor) and `ElementorexRuntime` (keeps
-countdowns ticking on your site, loads the next pages of loop grids with
-*Load more* or infinite scroll and applies the visitors' filters in place). Pages rendered by controllers can call
+countdowns ticking on your site, changes the page of loop grids in place,
+loads their next pages with *Load more* or infinite scroll and applies the
+visitors' filters in place). Pages rendered by controllers can call
 `initElementorex()` from `"elementorex_cms/runtime"` instead.
 
 ### 2. CSS

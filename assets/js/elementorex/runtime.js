@@ -4,6 +4,9 @@
 //   - the loop grid's "Load more" button and infinite scroll fetch the next
 //     page of the loop and append its items (without JavaScript they are
 //     plain links to that page)
+//   - the loop grid's page links (numbers, previous / next) replace only their
+//     loop grid with the one of the other page (without JavaScript they are
+//     plain links that reload the page)
 //   - filter forms apply on change (or with their button) and replace only
 //     their loop grid with the filtered one (without JavaScript they are plain
 //     GET forms that reload the page)
@@ -16,12 +19,14 @@
 
 const timers = new WeakMap()
 const loops = new WeakMap()
+const pagers = new WeakMap()
 const forms = new WeakMap()
 
 export function initElementorex(root = document) {
   if (!root || !root.querySelectorAll) return
   for (const el of root.querySelectorAll("[data-ex-countdown]")) startCountdown(el)
   for (const el of root.querySelectorAll("[data-ex-loop-more]")) startLoopMore(el)
+  for (const nav of root.querySelectorAll("[data-ex-loop-pages]")) startLoopPages(nav)
   for (const form of root.querySelectorAll("form[data-ex-filters]")) startFilters(form)
 }
 
@@ -32,6 +37,7 @@ export function stopElementorex(root = document) {
     timers.delete(el)
   }
   for (const el of root.querySelectorAll("[data-ex-loop-more]")) stopLoopMore(el)
+  for (const nav of root.querySelectorAll("[data-ex-loop-pages]")) stopLoopPages(nav)
   for (const form of root.querySelectorAll("form[data-ex-filters]")) stopFilters(form)
 }
 
@@ -130,13 +136,7 @@ async function loadMore(el) {
   setLoading(el, true)
 
   try {
-    const response = await fetch(url, { credentials: "same-origin", headers: { Accept: "text/html" } })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-    const page = new DOMParser().parseFromString(await response.text(), "text/html")
-    const fresh = page.querySelector(`[data-ex-id="${CSS.escape(id)}"]`)
-    if (!fresh) throw new Error("the loop is not in the next page")
-
+    const fresh = await fetchLoop(url, id)
     const added = []
     for (const item of fresh.querySelectorAll(":scope > [data-ex-loop-item]")) {
       const copy = document.importNode(item, true)
@@ -180,6 +180,108 @@ function setLoading(el, loading) {
   spinner && spinner.classList.toggle("hidden", !loading)
   const button = el.querySelector("[data-ex-loop-button]")
   if (button) button.classList.toggle("btn-disabled", loading)
+}
+
+// ---- Loop grid: page links ----
+//
+// `nav[data-ex-loop-pages]` is the last cell of the loop's grid. Its links
+// fetch their page and swap the loop grid for the one in it; the address
+// changes to that page without a new entry in the history (like filters).
+
+function startLoopPages(nav) {
+  if (pagers.has(nav)) return
+  const state = { controller: null }
+  pagers.set(nav, state)
+
+  state.onClick = (e) => {
+    const link = e.target.closest("a[href]")
+    if (!link || !nav.contains(link)) return
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0) return
+    e.preventDefault()
+    goToPage(nav, new URL(link.href, window.location.href))
+  }
+
+  nav.addEventListener("click", state.onClick)
+}
+
+function stopLoopPages(nav) {
+  const state = pagers.get(nav)
+  if (!state) return
+  state.controller && state.controller.abort()
+  nav.removeEventListener("click", state.onClick)
+  pagers.delete(nav)
+}
+
+async function goToPage(nav, url) {
+  const state = pagers.get(nav)
+  const loop = nav.parentElement
+  const id = loop && loop.getAttribute("data-ex-id")
+  if (!state) return
+  if (!id) return window.location.assign(url)
+
+  // A newer click wins over a request still on its way.
+  state.controller && state.controller.abort()
+  const controller = new AbortController()
+  state.controller = controller
+  setBusy(loop, true)
+
+  try {
+    const fresh = await fetchLoop(url, id, controller.signal)
+    const copy = replaceLoop(loop, fresh)
+    window.history.replaceState(window.history.state, "", url)
+
+    // Like the link's #anchor: the start of the grid, if it is out of view.
+    const top = copy.getBoundingClientRect().top
+    if (top < 0 || top > window.innerHeight) {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      copy.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" })
+    }
+
+    copy.dispatchEvent(new CustomEvent("elementorex:paged", { bubbles: true, detail: { url: url.href } }))
+  } catch (error) {
+    if (error.name === "AbortError") return
+    // Whatever went wrong, the other page is still a page: go there.
+    window.location.assign(url)
+  } finally {
+    // Unless a newer request took over
+    if (state.controller === controller) {
+      state.controller = null
+      setBusy(loop, false)
+    }
+  }
+}
+
+// ---- Loop grid: shared ----
+
+// The loop with node id `id` in the page at `url`, as the server renders it.
+async function fetchLoop(url, id, signal) {
+  const response = await fetch(url, { credentials: "same-origin", headers: { Accept: "text/html" }, signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+  const page = new DOMParser().parseFromString(await response.text(), "text/html")
+  const fresh = page.querySelector(`[data-ex-id="${CSS.escape(id)}"]`)
+  if (!fresh) throw new Error(`the loop is not in ${url.href}`)
+  return fresh
+}
+
+// Puts `fresh` (from fetchLoop) in the place of `loop`; returns it in the document.
+function replaceLoop(loop, fresh) {
+  stopElementorex(loop)
+  const copy = document.importNode(fresh, true)
+  loop.replaceWith(copy)
+  initElementorex(copy)
+  return copy
+}
+
+function setBusy(loop, busy) {
+  if (busy) {
+    loop.setAttribute("aria-busy", "true")
+    loop.style.transition = "opacity .15s"
+    loop.style.opacity = "0.55"
+  } else {
+    loop.removeAttribute("aria-busy")
+    loop.style.opacity = ""
+  }
 }
 
 // ---- Filter forms ----
@@ -269,26 +371,11 @@ async function applyFilters(form) {
   state.controller && state.controller.abort()
   const controller = new AbortController()
   state.controller = controller
-  loop.setAttribute("aria-busy", "true")
-  loop.style.transition = "opacity .15s"
-  loop.style.opacity = "0.55"
+  setBusy(loop, true)
 
   try {
-    const response = await fetch(url, {
-      credentials: "same-origin",
-      headers: { Accept: "text/html" },
-      signal: controller.signal
-    })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-    const page = new DOMParser().parseFromString(await response.text(), "text/html")
-    const fresh = page.querySelector(`[data-ex-id="${CSS.escape(id)}"]`)
-    if (!fresh) throw new Error("the loop is not in the filtered page")
-
-    stopElementorex(loop)
-    const copy = document.importNode(fresh, true)
-    loop.replaceWith(copy)
-    initElementorex(copy)
+    const fresh = await fetchLoop(url, id, controller.signal)
+    const copy = replaceLoop(loop, fresh)
     window.history.replaceState(window.history.state, "", url)
     updateReset(form)
     copy.dispatchEvent(new CustomEvent("elementorex:filtered", { bubbles: true, detail: { url: url.href } }))
@@ -297,9 +384,11 @@ async function applyFilters(form) {
     // Whatever went wrong, the filtered page is still a page: go there.
     window.location.assign(url)
   } finally {
-    if (state.controller === controller) state.controller = null
-    loop.removeAttribute("aria-busy")
-    loop.style.opacity = ""
+    // Unless a newer request took over
+    if (state.controller === controller) {
+      state.controller = null
+      setBusy(loop, false)
+    }
   }
 }
 
