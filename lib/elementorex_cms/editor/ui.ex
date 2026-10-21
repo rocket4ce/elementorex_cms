@@ -12,6 +12,7 @@ defmodule ElementorexCms.Editor.UI do
   alias ElementorexCms.Block.Prop
   alias ElementorexCms.Canvas
   alias ElementorexCms.Document
+  alias ElementorexCms.Dynamic
   alias ElementorexCms.Editor
   alias ElementorexCms.Editor.Code
   alias ElementorexCms.Editor.History
@@ -20,6 +21,8 @@ defmodule ElementorexCms.Editor.UI do
   alias ElementorexCms.I18n
   alias ElementorexCms.Registry
   alias ElementorexCms.Renderer
+  alias ElementorexCms.Source
+  alias ElementorexCms.Sources
   alias ElementorexCms.Style
   alias Phoenix.LiveView.JS
 
@@ -28,6 +31,7 @@ defmodule ElementorexCms.Editor.UI do
     basic: "Basic",
     components: "daisyUI",
     media: "Media",
+    dynamic: "Dynamic",
     advanced: "Advanced"
   }
 
@@ -53,6 +57,7 @@ defmodule ElementorexCms.Editor.UI do
       |> assign(:block, block)
       |> assign(:path, if(node, do: Document.path(doc, node["id"]), else: []))
       |> assign(:width, Map.get(assigns.canvas.widths, assigns.device))
+      |> assign(:dyn, dynamic_info(assigns, node))
 
     ~H"""
     <div
@@ -91,13 +96,20 @@ defmodule ElementorexCms.Editor.UI do
             <% "shortcuts" -> %>
               <.shortcuts_panel />
             <% _add -> %>
-              <.palette id={@id} registry={@registry} query={@palette_query} target={@myself} />
+              <.palette
+                id={@id}
+                registry={@registry}
+                query={@palette_query}
+                dynamic?={not Sources.empty?(@sources)}
+                target={@myself}
+              />
               <div class="exr-resizer" data-exr-resizer title={t("Drag to resize")}></div>
               <.tree
                 root={@root}
                 selected={@selected}
                 collapsed={@collapsed}
                 registry={@registry}
+                sources={@sources}
                 target={@myself}
               />
           <% end %>
@@ -126,7 +138,7 @@ defmodule ElementorexCms.Editor.UI do
             node={@node}
             block={@block}
             registry={@registry}
-            data={@render_data}
+            ctx={Editor.render_context(assigns, :public)}
             target={@myself}
           />
         </section>
@@ -144,17 +156,52 @@ defmodule ElementorexCms.Editor.UI do
             uploads={@uploads}
             target={@myself}
             doc={@doc}
+            dyn={@dyn}
           />
         </aside>
       </div>
       <.icon_picker :if={@picker} picker={@picker} target={@myself} />
       <.library :if={@library} library={@library} target={@myself} />
+      <.field_picker
+        :if={@field_picker && @block}
+        picker={@field_picker}
+        block={@block}
+        dyn={@dyn}
+        target={@myself}
+      />
     </div>
     """
   end
 
+  # What the inspector needs for dynamic content: the sources, the source of
+  # the items the selected node is rendered with and the site values of `data`.
+  defp dynamic_info(assigns, node) do
+    item_source =
+      node &&
+        Dynamic.item_source(
+          assigns.doc,
+          node["id"],
+          assigns.sources,
+          assigns.doc_source,
+          assigns.registry
+        )
+
+    own_source =
+      node && Dynamic.field_source(assigns.doc, node["id"], assigns.sources, assigns.registry)
+
+    %{
+      sources: Sources.list(assigns.sources),
+      item_source: item_source,
+      own_source: own_source,
+      site_fields: Dynamic.site_fields(assigns.render_data),
+      bindings: (node && node["dynamic"]) || %{},
+      loops: ElementorexCms.Filters.loop_choices(assigns.doc, assigns.registry, assigns.sources)
+    }
+  end
+
   defp top_assigns(assigns) do
-    Map.take(assigns, [
+    assigns
+    |> Map.take([
       :id,
       :title,
       :subtitle,
@@ -169,8 +216,11 @@ defmodule ElementorexCms.Editor.UI do
       :history,
       :preview,
       :code_open,
-      :myself
+      :myself,
+      :preview_records,
+      :preview_record
     ])
+    |> Map.put(:preview_source, Sources.fetch(assigns.sources, assigns.doc_source))
   end
 
   defp blocks_json(registry) do
@@ -226,6 +276,9 @@ defmodule ElementorexCms.Editor.UI do
   attr :preview, :boolean, required: true
   attr :code_open, :boolean, required: true
   attr :myself, :any, required: true
+  attr :preview_source, :any, default: nil
+  attr :preview_records, :list, default: []
+  attr :preview_record, :any, default: nil
 
   defp topbar(assigns) do
     ~H"""
@@ -295,6 +348,32 @@ defmodule ElementorexCms.Editor.UI do
             <.i name="plus" />
           </button>
         </div>
+        <form
+          :if={@preview_source}
+          id={"#{@id}-preview-record"}
+          class="exr-preview-pick"
+          phx-change="preview_record"
+          phx-target={@myself}
+          title={t("Item shown on the canvas")}
+        >
+          <.i name={@preview_source.icon} />
+          <select
+            name="record"
+            aria-label={t("Item shown on the canvas")}
+            disabled={@preview_records == []}
+          >
+            <option :if={@preview_records == []} value="">
+              {t("%{collection} has no items yet", collection: t(@preview_source.label))}
+            </option>
+            <option
+              :for={record <- @preview_records}
+              value={to_string(Source.id(@preview_source, record))}
+              selected={@preview_record == record}
+            >
+              {Source.title(@preview_source, record)}
+            </option>
+          </select>
+        </form>
       </div>
 
       <div class="exr-top-right">
@@ -407,10 +486,16 @@ defmodule ElementorexCms.Editor.UI do
   attr :id, :string, required: true
   attr :registry, Registry, required: true
   attr :query, :string, required: true
+  attr :dynamic?, :boolean, default: false
   attr :target, :any, required: true
 
   defp palette(assigns) do
-    assigns = assign(assigns, :groups, palette_groups(assigns.registry, assigns.query))
+    groups =
+      assigns.registry
+      |> palette_groups(assigns.query)
+      |> Enum.reject(fn {category, _blocks} -> category == :dynamic and not assigns.dynamic? end)
+
+    assigns = assign(assigns, :groups, groups)
 
     ~H"""
     <div class="exr-palette" data-exr-palette>
@@ -497,6 +582,7 @@ defmodule ElementorexCms.Editor.UI do
   attr :selected, :string, default: nil
   attr :collapsed, :any, required: true
   attr :registry, Registry, required: true
+  attr :sources, :any, default: nil
   attr :target, :any, required: true
 
   defp tree(assigns) do
@@ -522,6 +608,7 @@ defmodule ElementorexCms.Editor.UI do
           selected={@selected}
           collapsed={@collapsed}
           registry={@registry}
+          sources={@sources}
           target={@target}
         />
       </div>
@@ -536,6 +623,7 @@ defmodule ElementorexCms.Editor.UI do
   attr :selected, :string, default: nil
   attr :collapsed, :any, required: true
   attr :registry, Registry, required: true
+  attr :sources, :any, default: nil
   attr :target, :any, required: true
 
   defp tree_node(assigns) do
@@ -554,6 +642,7 @@ defmodule ElementorexCms.Editor.UI do
       |> assign(:open?, not MapSet.member?(assigns.collapsed, assigns.node["id"]))
       |> assign(:label, tree_label(assigns.node, meta))
       |> assign(:root?, assigns.node["type"] == "root")
+      |> assign(:hint, tag_hint(assigns.node, assigns.sources))
 
     ~H"""
     <div
@@ -585,7 +674,14 @@ defmodule ElementorexCms.Editor.UI do
         <span :if={@children == [] or @root?} class="exr-caret"></span>
         <.i name={@meta.icon} class="exr-tree-icon" />
         <span class="exr-tree-label">{@label}</span>
-        <span :if={tag_hint(@node)} class="exr-tree-tag">{tag_hint(@node)}</span>
+        <span
+          :if={@node["dynamic"] || get_in(@node, ["attrs", "condition"])}
+          class="exr-tree-dyn"
+          title={t("Dynamic content")}
+        >
+          <.i name="circle-stack" />
+        </span>
+        <span :if={@hint} class="exr-tree-tag">{@hint}</span>
         <span :if={!@root?} class="exr-tree-acts">
           <button
             type="button"
@@ -617,6 +713,7 @@ defmodule ElementorexCms.Editor.UI do
           selected={@selected}
           collapsed={@collapsed}
           registry={@registry}
+          sources={@sources}
           target={@target}
         />
       </div>
@@ -644,14 +741,23 @@ defmodule ElementorexCms.Editor.UI do
 
   defp preview_text(_node), do: nil
 
-  defp tag_hint(%{"type" => "heading", "props" => props}), do: props["level"] || "h2"
+  defp tag_hint(%{"type" => "loop", "props" => props}, sources) do
+    case Sources.fetch(sources, props["source"]) do
+      nil -> props["source"]
+      source -> t(source.label)
+    end
+  end
 
-  defp tag_hint(%{"type" => "container", "props" => props}),
+  defp tag_hint(%{"type" => "heading", "props" => props}, _sources), do: props["level"] || "h2"
+
+  defp tag_hint(%{"type" => "container", "props" => props}, _sources),
     do: if(props["direction"] == "row", do: "row", else: "column")
 
-  defp tag_hint(%{"type" => "grid", "props" => props}), do: "#{props["columns"] || 2} col"
-  defp tag_hint(%{"type" => "section"}), do: "section"
-  defp tag_hint(_node), do: nil
+  defp tag_hint(%{"type" => "grid", "props" => props}, _sources),
+    do: "#{props["columns"] || 2} col"
+
+  defp tag_hint(%{"type" => "section"}, _sources), do: "section"
+  defp tag_hint(_node, _sources), do: nil
 
   ## Side panels
 
@@ -659,6 +765,14 @@ defmodule ElementorexCms.Editor.UI do
   attr :target, :any, required: true
 
   defp templates_panel(assigns) do
+    {dynamic, sections} = Enum.split_with(assigns.templates, &(&1[:group] == :dynamic))
+
+    groups =
+      [{"Dynamic content", "circle-stack", dynamic}, {"Sections", "rectangle-group", sections}]
+      |> Enum.reject(fn {_label, _icon, templates} -> templates == [] end)
+
+    assigns = assign(assigns, groups: groups, headings?: dynamic != [])
+
     ~H"""
     <div class="exr-side-panel">
       <div class="exr-panel-head">
@@ -668,24 +782,27 @@ defmodule ElementorexCms.Editor.UI do
         {t("Ready-made sections. They are added after the selected block.")}
       </p>
       <div class="exr-template-list">
-        <button
-          :for={template <- @templates}
-          type="button"
-          class="exr-template"
-          phx-click="apply_template"
-          phx-value-key={template.key}
-          phx-target={@target}
-        >
-          <span class="exr-template-icon"><.i
-            name={template[:icon] || "rectangle-group"}
-            class="exr-i-lg"
-          /></span>
-          <span class="exr-template-text">
-            <b>{t(template.label)}</b>
-            <small :if={template[:description]}>{t(template.description)}</small>
-          </span>
-          <.i name="plus" />
-        </button>
+        <%= for {label, icon, templates} <- @groups do %>
+          <h5 :if={@headings?} class="exr-template-group"><.i name={icon} />{t(label)}</h5>
+          <button
+            :for={template <- templates}
+            type="button"
+            class={["exr-template", template[:group] == :dynamic && "is-dynamic"]}
+            phx-click="apply_template"
+            phx-value-key={template.key}
+            phx-target={@target}
+          >
+            <span class="exr-template-icon"><.i
+              name={template[:icon] || "rectangle-group"}
+              class="exr-i-lg"
+            /></span>
+            <span class="exr-template-text">
+              <b>{t(template.label)}</b>
+              <small :if={template[:description]}>{t(template.description)}</small>
+            </span>
+            <.i name="plus" />
+          </button>
+        <% end %>
       </div>
     </div>
     """
@@ -860,7 +977,7 @@ defmodule ElementorexCms.Editor.UI do
   attr :node, :map, default: nil
   attr :block, :any, default: nil
   attr :registry, Registry, required: true
-  attr :data, :map, default: %{}
+  attr :ctx, :any, required: true
   attr :target, :any, required: true
 
   defp codebar(assigns) do
@@ -916,8 +1033,7 @@ defmodule ElementorexCms.Editor.UI do
   end
 
   defp code_lines("html", node, assigns) do
-    ctx = Renderer.context(mode: :public, registry: assigns.registry, data: assigns.data)
-    node |> Renderer.render_node(ctx) |> Renderer.to_string_html() |> Code.html_lines()
+    node |> Renderer.render_node(assigns.ctx) |> Renderer.to_string_html() |> Code.html_lines()
   end
 
   defp code_lines("css", node, assigns) do
@@ -945,6 +1061,7 @@ defmodule ElementorexCms.Editor.UI do
   attr :media, :any, default: nil
   attr :uploads, :any, default: nil
   attr :target, :any, required: true
+  attr :dyn, :map, default: nil
 
   defp inspector(%{node: nil} = assigns) do
     assigns = assign(assigns, :count, Document.count(assigns.doc) - 1)
@@ -1061,6 +1178,7 @@ defmodule ElementorexCms.Editor.UI do
               media={@media}
               uploads={@uploads}
               target={@target}
+              dyn={@dyn}
             />
           <% "style" -> %>
             <.style_form
@@ -1074,7 +1192,7 @@ defmodule ElementorexCms.Editor.UI do
               target={@target}
             />
           <% _advanced -> %>
-            <.advanced_form id={@id} node={@node} root?={@root?} target={@target} />
+            <.advanced_form id={@id} node={@node} root?={@root?} target={@target} dyn={@dyn} />
         <% end %>
       </div>
     </div>
@@ -1087,6 +1205,7 @@ defmodule ElementorexCms.Editor.UI do
   attr :media, :any, default: nil
   attr :uploads, :any, default: nil
   attr :target, :any, required: true
+  attr :dyn, :map, default: nil
 
   defp content_form(%{block: nil} = assigns) do
     ~H"""
@@ -1108,6 +1227,15 @@ defmodule ElementorexCms.Editor.UI do
     assigns = assign(assigns, values: values, groups: groups)
 
     ~H"""
+    <div :if={@dyn && @dyn.item_source} class="exr-dyn-scope">
+      <span class="exr-dyn-scope-icon"><.i name={@dyn.item_source.icon} /></span>
+      <span class="exr-dyn-scope-text">
+        <b>{t("Item of %{collection}", collection: t(@dyn.item_source.label))}</b>
+        <small>
+          {t("Show one of its fields in a setting with")} <.i name="circle-stack" />
+        </small>
+      </span>
+    </div>
     <p :if={@groups == []} class="exr-muted exr-pad">
       {t("This block has no content settings. Use the Style tab.")}
     </p>
@@ -1132,6 +1260,7 @@ defmodule ElementorexCms.Editor.UI do
           target={@target}
           uploads={@uploads}
           media={@media}
+          dyn={@dyn}
         />
       </section>
     </form>
@@ -1298,9 +1427,19 @@ defmodule ElementorexCms.Editor.UI do
   attr :node, :map, required: true
   attr :root?, :boolean, required: true
   attr :target, :any, required: true
+  attr :dyn, :map, default: nil
 
   defp advanced_form(assigns) do
-    assigns = assign(assigns, :attrs, assigns.node["attrs"] || %{})
+    attrs = assigns.node["attrs"] || %{}
+    source = assigns.dyn && assigns.dyn.item_source
+
+    assigns =
+      assign(assigns,
+        attrs: attrs,
+        condition: attrs["condition"],
+        condition_fields: (source && Enum.reject(source.fields, & &1.custom)) || [],
+        condition_ops: Enum.reject(ElementorexCms.Blocks.Loop.ops(), &(elem(&1, 1) == "same"))
+      )
 
     ~H"""
     <form
@@ -1379,6 +1518,67 @@ defmodule ElementorexCms.Editor.UI do
           {t("Hidden blocks are dimmed on the canvas and removed on your site.")}
         </p>
       </section>
+      <section
+        :if={!@root? and (@condition_fields != [] or @condition)}
+        class="exr-group"
+        id={"#{@id}-a-condition"}
+      >
+        <h5 class="exr-group-title">{t("Display condition")}</h5>
+        <div class="exr-field">
+          <label class="exr-label" for={"#{@id}-a-cond-field"}>{t("Show it only when")}</label>
+          <select
+            id={"#{@id}-a-cond-field"}
+            name="attrs[condition][field]"
+            class="exr-input exr-select"
+          >
+            <option value="">{t("Always")}</option>
+            <option
+              :for={field <- @condition_fields}
+              value={field.key}
+              selected={@condition && @condition["field"] == field.key}
+            >
+              {t(field.label)}
+            </option>
+            <option
+              :if={@condition && !Enum.any?(@condition_fields, &(&1.key == @condition["field"]))}
+              value={@condition["field"]}
+              selected
+            >
+              {@condition["field"]}
+            </option>
+          </select>
+        </div>
+        <div :if={@condition} class="exr-grid-2">
+          <div class="exr-field">
+            <label class="exr-label" for={"#{@id}-a-cond-op"}>{t("Condition")}</label>
+            <select id={"#{@id}-a-cond-op"} name="attrs[condition][op]" class="exr-input exr-select">
+              <option
+                :for={{label, op} <- @condition_ops}
+                value={op}
+                selected={@condition["op"] == op}
+              >
+                {t(label)}
+              </option>
+            </select>
+          </div>
+          <div :if={@condition["op"] not in ~w(set unset)} class="exr-field">
+            <label class="exr-label" for={"#{@id}-a-cond-value"}>{t("Value")}</label>
+            <input
+              id={"#{@id}-a-cond-value"}
+              type="text"
+              name="attrs[condition][value]"
+              value={@condition["value"]}
+              class="exr-input"
+              phx-debounce="300"
+            />
+          </div>
+        </div>
+        <p class="exr-help">
+          {t(
+            "The block only shows for the items that match. On the canvas it is dimmed for the others."
+          )}
+        </p>
+      </section>
       <section :if={!@root?} class="exr-group">
         <h5 class="exr-group-title">{t("Entrance animation")}</h5>
         <div class="exr-grid-2">
@@ -1438,6 +1638,159 @@ defmodule ElementorexCms.Editor.UI do
   defp animation_label(other), do: other
 
   ## Modals
+
+  attr :picker, :map, required: true
+  attr :block, :any, required: true
+  attr :dyn, :map, required: true
+  attr :target, :any, required: true
+
+  defp field_picker(assigns) do
+    prop = Block.find_prop(assigns.block, assigns.picker.prop)
+    query = assigns.picker.query |> to_string() |> String.trim() |> String.downcase()
+    dyn = assigns.dyn
+
+    groups =
+      [
+        dyn.item_source &&
+          {t("Item of %{collection}", collection: t(dyn.item_source.label)), dyn.item_source.icon,
+           "item", Source.fields(dyn.item_source)},
+        dyn.site_fields != [] && {t("Site"), "globe-alt", "site", dyn.site_fields}
+      ]
+      |> Enum.filter(& &1)
+      |> Enum.map(fn {label, icon, from, fields} ->
+        fields =
+          fields
+          |> Enum.filter(&field_matches?(&1, query))
+          |> Enum.sort_by(&if(suggested?(prop, &1), do: 0, else: 1))
+
+        {label, icon, from, fields}
+      end)
+      |> Enum.reject(fn {_label, _icon, _from, fields} -> fields == [] end)
+
+    assigns = assign(assigns, prop: prop, groups: groups)
+
+    ~H"""
+    <div class="exr-modal" phx-window-keydown="dynamic_close" phx-key="Escape" phx-target={@target}>
+      <div class="exr-modal-backdrop" phx-click="dynamic_close" phx-target={@target}></div>
+      <div
+        class="exr-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("Show a field")}
+        id="exr-field-picker"
+      >
+        <div class="exr-modal-head">
+          <h3>{t("Show a field")}</h3>
+          <span :if={@prop} class="exr-muted">{t(@prop.label)}</span>
+          <button
+            type="button"
+            class="exr-icon-btn"
+            phx-click="dynamic_close"
+            phx-target={@target}
+            aria-label={t("Close")}
+          >
+            <.i name="x-mark" />
+          </button>
+        </div>
+        <form
+          id="exr-field-search"
+          class="exr-search"
+          phx-change="dynamic_search"
+          phx-submit="dynamic_search"
+          phx-target={@target}
+        >
+          <.i name="magnifying-glass" />
+          <input
+            type="search"
+            name="q"
+            value={@picker.query}
+            placeholder={t("Search fields…")}
+            autocomplete="off"
+            phx-debounce="120"
+            phx-mounted={JS.focus()}
+          />
+        </form>
+        <div class="exr-field-list">
+          <section :for={{label, icon, from, fields} <- @groups} class="exr-field-section">
+            <h5 class="exr-field-group"><.i name={icon} />{label}</h5>
+            <button
+              :for={field <- fields}
+              type="button"
+              class={["exr-field-item", suggested?(@prop, field) && "is-suggested"]}
+              phx-click="dynamic_pick"
+              phx-value-field={field.key}
+              phx-value-from={from}
+              phx-target={@target}
+              data-exr-field={field.key}
+            >
+              <span class="exr-field-icon"><.i name={type_icon(field.type)} /></span>
+              <span class="exr-field-name">
+                <b>{t(field.label)}</b>
+                <small class="exr-mono">{field.key}</small>
+              </span>
+              <span class="exr-field-type">{t(type_label(field.type))}</span>
+            </button>
+          </section>
+          <p :if={@groups == []} class="exr-muted exr-pad">{t("No field matches.")}</p>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp field_matches?(_field, ""), do: true
+
+  defp field_matches?(field, query) do
+    [field.key, field.label, t(field.label)]
+    |> Enum.any?(&String.contains?(String.downcase(&1), query))
+  end
+
+  # Fields whose values suit the prop go first and are highlighted.
+  defp suggested?(nil, _field), do: false
+  defp suggested?(%Prop{type: :image}, field), do: field.type in [:image, :url]
+
+  defp suggested?(%Prop{type: :url}, field),
+    do: field.type in [:url, :image] or field.key == "@url"
+
+  defp suggested?(%Prop{type: type}, field) when type in [:integer, :number],
+    do: field.type in [:integer, :number]
+
+  defp suggested?(%Prop{type: :boolean}, field), do: field.type == :boolean
+  defp suggested?(%Prop{type: :datetime}, field), do: field.type in [:date, :datetime]
+  defp suggested?(%Prop{type: :color}, field), do: field.type == :color
+  defp suggested?(%Prop{type: :icon}, field), do: field.type == :icon
+
+  defp suggested?(%Prop{}, field),
+    do: field.type in [:string, :text, :html, :integer, :number, :date, :datetime]
+
+  @doc false
+  def type_icon(:string), do: "bars-2"
+  def type_icon(:text), do: "bars-3-bottom-left"
+  def type_icon(:html), do: "code-bracket"
+  def type_icon(type) when type in [:integer, :number], do: "hashtag"
+  def type_icon(:boolean), do: "check-circle"
+  def type_icon(type) when type in [:date, :datetime], do: "calendar"
+  def type_icon(:image), do: "photo"
+  def type_icon(:url), do: "link"
+  def type_icon(:color), do: "swatch"
+  def type_icon(:icon), do: "star"
+  def type_icon(:list), do: "list-bullet"
+  def type_icon(_type), do: "variable"
+
+  @doc false
+  def type_label(:string), do: "Text"
+  def type_label(:text), do: "Long text"
+  def type_label(:html), do: "Rich text"
+  def type_label(type) when type in [:integer, :number], do: "Number"
+  def type_label(:boolean), do: "Yes / No"
+  def type_label(:date), do: "Date"
+  def type_label(:datetime), do: "Date and time"
+  def type_label(:image), do: "Image"
+  def type_label(:url), do: "Link"
+  def type_label(:color), do: "Color"
+  def type_label(:icon), do: "Icon"
+  def type_label(:list), do: "List"
+  def type_label(_type), do: "Value"
 
   attr :picker, :map, required: true
   attr :target, :any, required: true

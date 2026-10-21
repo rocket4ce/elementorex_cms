@@ -31,8 +31,11 @@ defmodule ElementorexCms.Document do
     * `"style"` - declarations per state: `"desktop"`, `"tablet"`, `"mobile"`
       and `"hover"` (see `ElementorexCms.Style`)
     * `"attrs"` - *Advanced* settings: `"id"`, `"class"`, `"hide_on"`, `"css"`,
-      `"animation"`, `"animation_delay"` and `"label"` (name in the tree)
+      `"animation"`, `"animation_delay"`, `"label"` (name in the tree) and
+      `"condition"` (display condition, see `ElementorexCms.Dynamic`)
     * `"children"` - child nodes (containers only)
+    * `"dynamic"` - only when some prop is bound to dynamic content: the
+      bindings of the props, by key (see `ElementorexCms.Dynamic`)
 
   The functions here are pure: they take a document and return a new one.
   Tree operations validate what they are asked (a node cannot go inside itself,
@@ -41,7 +44,9 @@ defmodule ElementorexCms.Document do
   """
 
   alias ElementorexCms.Block
+  alias ElementorexCms.Block.Prop
   alias ElementorexCms.CSS
+  alias ElementorexCms.Dynamic
   alias ElementorexCms.Id
   alias ElementorexCms.Registry
 
@@ -80,7 +85,8 @@ defmodule ElementorexCms.Document do
   A new node of `type`. `props` are stored as given (string keys); pass
   `registry:` to fill in the defaults of the block and its default children.
 
-  Options: `:children`, `:style`, `:attrs`, `:id`, `:registry`.
+  Options: `:children`, `:style`, `:attrs`, `:id`, `:registry` and `:dynamic`
+  (bindings of props to fields, see `ElementorexCms.Dynamic`).
   """
   @spec node(String.t(), map(), keyword()) :: tree_node()
   def node(type, props \\ %{}, opts \\ []) do
@@ -106,7 +112,11 @@ defmodule ElementorexCms.Document do
       "attrs" => Keyword.get(opts, :attrs, %{}),
       "children" => children
     }
+    |> put_dynamic(Dynamic.normalize(Keyword.get(opts, :dynamic, %{}), block))
   end
+
+  defp put_dynamic(node, dynamic) when dynamic == %{}, do: Map.delete(node, "dynamic")
+  defp put_dynamic(node, dynamic), do: Map.put(node, "dynamic", dynamic)
 
   @doc "The root node."
   @spec root(t()) :: tree_node()
@@ -229,6 +239,37 @@ defmodule ElementorexCms.Document do
     update(doc, id, fn node ->
       Map.update(node, "props", %{key => value}, &Map.put(&1 || %{}, key, value))
     end)
+  end
+
+  @doc """
+  Binds a prop of a node to a field of dynamic content (see
+  `ElementorexCms.Dynamic`): `binding` is a field key or a map with `"field"`
+  and its settings. Props that cannot be bound and invalid bindings give
+  `{:error, :invalid}`.
+  """
+  @spec put_binding(t(), String.t(), String.t(), term(), Registry.t() | nil) ::
+          {:ok, t()} | {:error, :not_found | :invalid}
+  def put_binding(doc, id, key, binding, registry \\ nil) do
+    registry = registry || Registry.default()
+
+    with {:ok, node} <- fetch(doc, id),
+         block when not is_nil(block) <- Registry.fetch(registry, node["type"]),
+         %Prop{} = prop <- Block.find_prop(block, key),
+         true <- Dynamic.bindable?(prop),
+         %{} = binding <- Dynamic.normalize_binding(binding) do
+      update(doc, id, fn node ->
+        put_dynamic(node, Map.put(node["dynamic"] || %{}, prop.key, binding))
+      end)
+    else
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :invalid}
+    end
+  end
+
+  @doc "Removes the binding of a prop of a node: the prop shows its own value again."
+  @spec drop_binding(t(), String.t(), String.t()) :: {:ok, t()} | {:error, :not_found}
+  def drop_binding(doc, id, key) do
+    update(doc, id, fn node -> put_dynamic(node, Map.delete(node["dynamic"] || %{}, key)) end)
   end
 
   @doc """
@@ -390,14 +431,35 @@ defmodule ElementorexCms.Document do
     end
   end
 
-  @doc "A copy of a node (or of a whole document) with new ids everywhere."
+  @doc """
+  A copy of a node (or of a whole document) with new ids everywhere. Props that
+  point to a node of the copy (the loop grid a filter form filters) point to
+  its copy.
+  """
   @spec regenerate_ids(t() | tree_node()) :: t() | tree_node()
   def regenerate_ids(%{"root" => root} = doc), do: %{doc | "root" => regenerate_ids(root)}
 
   def regenerate_ids(%{} = node) do
+    {node, ids} = renew_ids(node, %{})
+    remap_ids(node, ids)
+  end
+
+  defp renew_ids(node, ids) do
+    id = Id.generate()
+    ids = if is_binary(node["id"]), do: Map.put(ids, node["id"], id), else: ids
+    {children, ids} = Enum.map_reduce(node["children"] || [], ids, &renew_ids/2)
+    {node |> Map.put("id", id) |> Map.put("children", children), ids}
+  end
+
+  defp remap_ids(node, ids) do
+    props =
+      Map.new(node["props"] || %{}, fn {key, value} ->
+        {key, if(is_binary(value), do: Map.get(ids, value, value), else: value)}
+      end)
+
     node
-    |> Map.put("id", Id.generate())
-    |> Map.update("children", [], fn children -> Enum.map(children || [], &regenerate_ids/1) end)
+    |> Map.put("props", props)
+    |> Map.put("children", Enum.map(node["children"], &remap_ids(&1, ids)))
   end
 
   defp ids_taken?(doc, node) do
@@ -507,16 +569,20 @@ defmodule ElementorexCms.Document do
         {[], state}
       end
 
-    node = %{
-      "id" => id,
-      "type" => type,
-      "props" => props,
-      "style" => normalize_style(node["style"]),
-      "attrs" => normalize_attrs(node["attrs"]),
-      "children" => children
-    }
+    normalized =
+      put_dynamic(
+        %{
+          "id" => id,
+          "type" => type,
+          "props" => props,
+          "style" => normalize_style(node["style"]),
+          "attrs" => normalize_attrs(node["attrs"]),
+          "children" => children
+        },
+        Dynamic.normalize(node["dynamic"], block)
+      )
 
-    {node, state}
+    {normalized, state}
   end
 
   @doc "Keeps only valid states and declarations of a style map."
@@ -572,6 +638,7 @@ defmodule ElementorexCms.Document do
       &(is_binary(&1) and String.trim(&1) != ""),
       &String.slice(String.trim(&1), 0, 60)
     )
+    |> put_valid("condition", Dynamic.normalize_condition(attrs["condition"]), &is_map/1)
   end
 
   def normalize_attrs(_attrs), do: %{}

@@ -57,10 +57,17 @@ defmodule ElementorexCms.Registry do
     Blocks.Carousel,
     Blocks.Video,
     Blocks.Mockup,
-    Blocks.Html
+    Blocks.Html,
+    Blocks.Loop,
+    Blocks.Filters,
+    Blocks.FilterSearch,
+    Blocks.FilterChoice,
+    Blocks.FilterRange,
+    Blocks.FilterToggle,
+    Blocks.FilterSort
   ]
 
-  @categories [:layout, :basic, :components, :media, :advanced]
+  @categories [:layout, :basic, :components, :media, :dynamic, :advanced]
 
   @doc "Built-in block modules."
   @spec builtin() :: [module()]

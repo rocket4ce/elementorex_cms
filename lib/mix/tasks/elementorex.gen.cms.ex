@@ -409,11 +409,19 @@ defmodule Mix.Tasks.Elementorex.Gen.Cms do
 
       alias <%= @context %>
 
+      # `params` go to the document: its paginated loops read their page there.
       @impl true
-      def mount(%{"slug" => slug}, _session, socket) do
+      def mount(%{"slug" => slug} = params, _session, socket) do
         case <%= @context_name %>.get_published_<%= @singular %>(slug) do
-          nil -> raise Ecto.NoResultsError, queryable: <%= @schema %>
-          <%= @singular %> -> {:ok, socket |> assign(:page_title, <%= @singular %>.title) |> assign(:<%= @singular %>, <%= @singular %>)}
+          nil ->
+            raise Ecto.NoResultsError, queryable: <%= @schema %>
+
+          <%= @singular %> ->
+            {:ok,
+             socket
+             |> assign(:page_title, <%= @singular %>.title)
+             |> assign(:<%= @singular %>, <%= @singular %>)
+             |> assign(:params, params)}
         end
       end
     end
@@ -424,7 +432,7 @@ defmodule Mix.Tasks.Elementorex.Gen.Cms do
     ~S'''
     <Layouts.app flash={@flash} current_scope={assigns[:current_scope]}>
       <article id="<%= @singular %>-content" phx-hook="ElementorexRuntime" class="mx-auto max-w-5xl">
-        <ElementorexCms.Components.document document={@<%= @singular %>.body} />
+        <ElementorexCms.Components.document document={@<%= @singular %>.body} params={@params} />
       </article>
     </Layouts.app>
     '''

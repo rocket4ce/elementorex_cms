@@ -72,6 +72,19 @@ Blocks receive `@ctx.data`, set with `data={%{brand: @brand}}` in the editor and
 the document component, for blocks that depend on the page (a WhatsApp button
 with the number of the current brand, prices of the current product…).
 
+Its top-level text, numbers and dates can also be shown by any block without
+code: they are the *Site* fields of the database button next to each prop.
+Records of your schemas (products, posts…) are dynamic content: see the
+[dynamic content guide](dynamic_content.md).
+
+## Query params
+
+Pass the params of the page (`params={@params}` from `mount/3`, or
+`@conn.params`) to `<ElementorexCms.Components.document>`: loop grids read
+their page and the visitors' search and filters there, each under its own key
+(`?catalog[page]=2&catalog[category]=Shoes`). Only those keys are used and
+kept in their links.
+
 ## Development with a path dependency
 
 While developing the library next to your app (`{:elementorex_cms, path: "../elementorex_cms"}`):

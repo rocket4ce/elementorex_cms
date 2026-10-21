@@ -29,6 +29,19 @@ defmodule ElementorexCms.Components do
     * `locale` - language of the texts the blocks add themselves (countdown
       units, placeholders…); default: the locale of the process (see
       `ElementorexCms.I18n`)
+    * `record` - the record a template shows (a product on its page): props
+      bound to fields take its values (see `ElementorexCms.Dynamic`)
+    * `source` - the source of `record` (its key, like `"products"`); found
+      from the record's Ecto schema when not given
+    * `sources` - the sources of dynamic content (default
+      `ElementorexCms.Sources.default/0`)
+    * `params` - the query params of the page: loops read their page and the
+      visitors' filters from them (`params={@params}` from `mount/3`, or
+      `@conn.params`)
+
+  A template for the pages of a source:
+
+      <ElementorexCms.Components.document document={@template.body} record={@product} />
   """
   attr :document, :map, default: nil
   attr :registry, :any, default: nil
@@ -36,6 +49,10 @@ defmodule ElementorexCms.Components do
   attr :mode, :atom, default: :public, values: [:public, :editor]
   attr :class, :any, default: nil
   attr :locale, :string, default: nil
+  attr :record, :any, default: nil
+  attr :source, :any, default: nil
+  attr :sources, :any, default: nil
+  attr :params, :map, default: %{}
 
   def document(%{document: nil} = assigns), do: ~H""
 
@@ -53,8 +70,19 @@ defmodule ElementorexCms.Components do
   end
 
   def document(assigns) do
-    ctx = Renderer.context(mode: assigns.mode, registry: assigns.registry, data: assigns.data)
+    ctx =
+      Renderer.context(
+        mode: assigns.mode,
+        registry: assigns.registry,
+        data: assigns.data,
+        sources: assigns.sources,
+        record: assigns.record,
+        source: assigns.source,
+        params: assigns.params
+      )
+
     doc = Document.normalize(assigns.document, ctx.registry)
+    ctx = %{ctx | doc: doc}
 
     root =
       doc

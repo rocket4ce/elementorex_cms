@@ -16,7 +16,10 @@ defmodule ElementorexCms.TestEditorLive do
        document: doc,
        saves: 0,
        fail: session["fail"] || false,
-       locale: session["locale"] || "en"
+       locale: session["locale"] || "en",
+       sources: session["sources"],
+       source: session["source"],
+       data: session["data"] || %{}
      )}
   end
 
@@ -34,6 +37,9 @@ defmodule ElementorexCms.TestEditorLive do
       notify_changes
       media={ElementorexCms.TestMedia}
       media_context={%{test_pid: @test_pid}}
+      sources={@sources}
+      source={@source}
+      data={@data}
     >
       <:status><span id="status-slot">Draft</span></:status>
       <:actions><button id="publish">Publish</button></:actions>

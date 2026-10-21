@@ -277,10 +277,13 @@ export function parentContainer(node) {
 }
 
 // Direct child blocks of a container (its children may sit inside wrappers).
+// The repetitions of a loop after the first one are copies: they are left out.
 export function childBlocks(container) {
-  return Array.from(container.querySelectorAll("[data-ex-id]")).filter(
-    (el) => el.parentElement.closest("[data-ex-id]") === container
-  )
+  return Array.from(container.querySelectorAll("[data-ex-id]")).filter((el) => {
+    if (el.parentElement.closest("[data-ex-id]") !== container) return false
+    const copy = el.closest("[data-ex-loop-copy]")
+    return !copy || !container.contains(copy)
+  })
 }
 
 // "x" when the children sit side by side, "y" when they stack.

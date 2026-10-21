@@ -15,6 +15,7 @@ function component. Generate one with `mix elementorex.gen.block Name`.
 | `:children` / `:parents` | restrict which types go inside / where it can go |
 | `:style` | style of new nodes, e.g. `%{"desktop" => %{"padding-top" => "24px"}}` |
 | `:palette` | `false` to hide it from the palette |
+| `:loop` | the container repeats its children for the items of the source in its `source` prop (see the dynamic content guide) |
 
 ## Props
 
@@ -28,14 +29,19 @@ prop :items, :list,
 
 Types: `:string`, `:text`, `:richtext` (`policy: :inline` for one line),
 `:html`, `:select`, `:boolean`, `:integer`, `:number`, `:url`, `:image`, `:icon`,
-`:color`, `:datetime`, `:list`. Each one has a default control in the
+`:color`, `:datetime`, `:list`, and for blocks that query dynamic content
+`:source` (a collection) and `:field` (a field of it, `only: :sortable` or
+`:filterable`). Each one has a default control in the
 inspector; `control:` changes it (`:textarea`, `:segmented`, `:swatches`,
 `:range`, `:code`…). `group:` puts controls under a heading and `show_if:`
 shows a control only when another prop matches (`{:icon, :present}`,
 `{:variant, "outline"}`, `{:size, ["lg", "xl"]}`).
 
 Values are cast and sanitized when they are stored and again when they are
-rendered, so `render/1` can trust its assigns.
+rendered, so `render/1` can trust its assigns. That includes values of dynamic
+content: every prop but lists can be bound to a field of the current item in
+the editor, and the block gets the field's value already cast, without doing
+anything (`inline/2` is off for bound props).
 
 ## Rendering
 

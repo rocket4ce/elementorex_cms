@@ -146,23 +146,41 @@ defmodule ElementorexCms.I18n do
   end
 
   @doc """
-  The translatable strings of block modules (`ElementorexCms.Block`) and
-  template modules (`ElementorexCms.Templates`): labels, descriptions, help
-  texts, groups, option names, the custom category and default texts.
-  Used by `mix elementorex.gen.locale`.
+  The translatable strings of block modules (`ElementorexCms.Block`),
+  template modules (`ElementorexCms.Templates`) and sources of dynamic content
+  (`ElementorexCms.Source`, as listed in the `:sources` config): labels,
+  descriptions, help texts, groups, option names, the custom category, default
+  texts and the names of sources and their fields. Used by
+  `mix elementorex.gen.locale`.
   """
-  @spec strings([module()]) :: [String.t()]
+  @spec strings([module() | {module(), keyword()}]) :: [String.t()]
   def strings(modules) do
     modules
-    |> Enum.flat_map(fn module ->
-      cond do
-        ElementorexCms.Block.block?(module) -> block_strings(module)
-        function_exported?(module, :templates, 0) -> template_strings(module)
-        true -> []
-      end
+    |> Enum.flat_map(fn
+      {_adapter, _opts} = spec ->
+        source_strings(spec)
+
+      module ->
+        cond do
+          ElementorexCms.Block.block?(module) -> block_strings(module)
+          function_exported?(module, :templates, 0) -> template_strings(module)
+          source?(module) -> source_strings(module)
+          true -> []
+        end
     end)
     |> Enum.filter(&translatable?/1)
     |> Enum.uniq()
+  end
+
+  defp source?(module) do
+    ElementorexCms.Source.source_module?(module) or function_exported?(module, :__schema__, 1)
+  end
+
+  defp source_strings(spec) do
+    source = ElementorexCms.Source.new(spec)
+    [source.label | Enum.map(source.fields, & &1.label)]
+  rescue
+    _error -> []
   end
 
   ## Lookup

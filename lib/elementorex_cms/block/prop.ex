@@ -22,6 +22,9 @@ defmodule ElementorexCms.Block.Prop do
   | `:color`    | CSS color or theme variable             | swatches + color input     |
   | `:datetime` | `"2026-12-31T23:59"`                     | date and time input        |
   | `:list`     | list of items, each with its `:fields`  | repeater                   |
+  | `:source`   | key of an `ElementorexCms.Source`       | collection select          |
+  | `:field`    | key of a field of the block's source    | field select               |
+  | `:loop`     | node id of a loop grid of the document  | loop select                |
 
   ## Options
 
@@ -41,6 +44,9 @@ defmodule ElementorexCms.Block.Prop do
       `{:icon, :present}`, `{:variant, "outline"}` or `{:size, ["lg", "xl"]}`
     * `:fields`, `:item_label`, `:max_items` - for `:list` (`fields` takes
       `{name, type, opts}` tuples)
+    * `:only` - for `:field`: `:sortable` or `:filterable` fields only. The
+      fields are those of the source chosen in the block's `source` prop or,
+      inside a filter form, those of the loop it filters (its `:loop` prop)
   """
 
   alias ElementorexCms.CSS
@@ -49,7 +55,7 @@ defmodule ElementorexCms.Block.Prop do
   alias ElementorexCms.Id
   alias ElementorexCms.URL
 
-  @types ~w(string text richtext html select boolean integer number url image icon color datetime list)a
+  @types ~w(string text richtext html select boolean integer number url image icon color datetime list source field loop)a
 
   defstruct [
     :name,
@@ -70,6 +76,7 @@ defmodule ElementorexCms.Block.Prop do
     :item_label,
     :max_items,
     :policy,
+    :only,
     options: [],
     fields: [],
     inline: false
@@ -115,7 +122,8 @@ defmodule ElementorexCms.Block.Prop do
       fields: fields,
       item_label: opts[:item_label] && to_string(opts[:item_label]),
       max_items: Keyword.get(opts, :max_items, 50),
-      policy: Keyword.get(opts, :policy, :rich)
+      policy: Keyword.get(opts, :policy, :rich),
+      only: opts[:only]
     }
 
     %{prop | default: Keyword.get(opts, :default, empty(prop))}
@@ -139,6 +147,9 @@ defmodule ElementorexCms.Block.Prop do
   defp default_control(:color), do: :color
   defp default_control(:datetime), do: :datetime
   defp default_control(:list), do: :repeater
+  defp default_control(:source), do: :source
+  defp default_control(:field), do: :field
+  defp default_control(:loop), do: :loop
 
   defp default_max_length(:string), do: 500
   defp default_max_length(:text), do: 10_000
@@ -258,6 +269,24 @@ defmodule ElementorexCms.Block.Prop do
     value = String.trim(to_text(value))
 
     if value =~ ~r/\A\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?\z/, do: value, else: prop.default
+  end
+
+  def cast(%__MODULE__{type: :source}, value) do
+    value = String.trim(to_text(value))
+    if value =~ ~r/\A[a-z][a-z0-9_]{0,39}\z/, do: value, else: ""
+  end
+
+  def cast(%__MODULE__{type: :field}, value) do
+    value = String.trim(to_text(value))
+
+    if value =~ ~r/\A[a-z_][a-z0-9_]{0,63}(\.[a-z_][a-z0-9_]{0,63}){0,3}\z/,
+      do: value,
+      else: ""
+  end
+
+  def cast(%__MODULE__{type: :loop}, value) do
+    value = String.trim(to_text(value))
+    if Id.valid?(value), do: value, else: ""
   end
 
   def cast(%__MODULE__{type: :list} = prop, items) when is_list(items) do

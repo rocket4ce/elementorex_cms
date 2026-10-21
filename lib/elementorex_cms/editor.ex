@@ -55,7 +55,13 @@ defmodule ElementorexCms.Editor do
     * `registry` - `ElementorexCms.Registry` (default: `ElementorexCms.Registry.default/0`)
     * `templates` - template modules (default: the configured ones)
     * `media`, `media_context` - see `ElementorexCms.Media`
-    * `data` - passed to the blocks as `@ctx.data`
+    * `data` - passed to the blocks as `@ctx.data`; its top-level values (text,
+      numbers, dates) can also be bound to props as *Site* fields
+    * `sources` - sources of dynamic content (default:
+      `ElementorexCms.Sources.default/0`, see `ElementorexCms.Source`)
+    * `source` - the key of a source when the document is the template of its
+      items (the page of a product): props can be bound to the fields of an
+      item, and the top bar picks the item shown on the canvas
     * `locale` - language of the interface: `"en"` (default), `"es"`, `"pt"`,
       `"de"`, `"fr"`, `"it"`, `"ja"` or one of your locale modules (see
       `ElementorexCms.I18n`)
@@ -80,6 +86,7 @@ defmodule ElementorexCms.Editor do
   alias ElementorexCms.Block.Prop
   alias ElementorexCms.Canvas
   alias ElementorexCms.Document
+  alias ElementorexCms.Dynamic
   alias ElementorexCms.Editor.History
   alias ElementorexCms.Editor.StyleFields
   alias ElementorexCms.Editor.UI
@@ -87,6 +94,9 @@ defmodule ElementorexCms.Editor do
   alias ElementorexCms.I18n
   alias ElementorexCms.Registry
   alias ElementorexCms.Renderer
+  alias ElementorexCms.Source
+  alias ElementorexCms.Source.Query
+  alias ElementorexCms.Sources
   alias ElementorexCms.Style
   alias ElementorexCms.Templates
 
@@ -144,7 +154,12 @@ defmodule ElementorexCms.Editor do
        clipboard: nil,
        picker: nil,
        library: nil,
-       upload_target: nil
+       upload_target: nil,
+       field_picker: nil,
+       doc_source: nil,
+       preview_loaded: false,
+       preview_records: [],
+       preview_record: nil
      )
      |> allow_upload(:exr_image,
        accept: ~w(.jpg .jpeg .png .gif .webp .svg .avif),
@@ -195,12 +210,17 @@ defmodule ElementorexCms.Editor do
       |> assign(:media, assigns[:media])
       |> assign(:media_context, assigns[:media_context] || %{})
       |> assign(:render_data, assigns[:data] || %{})
-      |> assign(:templates, Templates.all(assigns[:templates]))
       |> assign(:notify_changes, assigns[:notify_changes] || false)
       |> assign(:fullscreen, Map.get(assigns, :fullscreen, true))
       |> assign(:inline_css, Map.get(assigns, :inline_css, true))
       |> assign(:locale, I18n.locale())
       |> assign_new(:registry, fn -> assigns[:registry] || Registry.default() end)
+      |> assign_new(:sources, fn -> Sources.new(assigns[:sources]) end)
+      |> assign_source(assigns[:source])
+      |> then(fn socket ->
+        %{sources: sources, doc_source: source} = socket.assigns
+        assign(socket, :templates, Templates.available(assigns[:templates], sources, source))
+      end)
 
     remount? = socket.assigns.doc == nil or assigns[:remount_key] != socket.assigns.remount_key
 
@@ -423,7 +443,89 @@ defmodule ElementorexCms.Editor do
     end
   end
 
+  ## Dynamic content
+
+  def handle_event("dynamic_open", %{"prop" => key}, socket) do
+    {:noreply, assign(socket, :field_picker, %{prop: key, query: ""})}
+  end
+
+  def handle_event("dynamic_search", %{"q" => query}, socket) do
+    {:noreply, update(socket, :field_picker, &(&1 && %{&1 | query: query}))}
+  end
+
+  def handle_event("dynamic_close", _params, socket),
+    do: {:noreply, assign(socket, :field_picker, nil)}
+
+  def handle_event("dynamic_pick", %{"field" => field} = params, socket) do
+    %{selected: id, field_picker: picker} = socket.assigns
+    from = if params["from"] == "site", do: "site", else: "item"
+
+    with %{prop: key} <- picker,
+         %Source.Field{} = picked <- bindable_field(socket, id, from, field) do
+      binding =
+        picked.defaults
+        |> Map.put("field", picked.key)
+        |> then(&if(from == "site", do: Map.put(&1, "from", "site"), else: &1))
+
+      socket = assign(socket, :field_picker, nil)
+
+      change(socket, I18n.t("Bind %{field}", field: I18n.t(picked.label)), fn doc ->
+        with {:ok, doc} <- Document.put_binding(doc, id, key, binding, socket.assigns.registry),
+             do: {:ok, doc, id}
+      end)
+    else
+      _ -> {:noreply, assign(socket, :field_picker, nil)}
+    end
+  end
+
+  def handle_event("dynamic_clear", %{"prop" => key}, socket) do
+    id = socket.assigns.selected
+
+    change(socket, I18n.t("Remove the binding"), fn doc ->
+      with {:ok, doc} <- Document.drop_binding(doc, id, key), do: {:ok, doc, id}
+    end)
+  end
+
+  def handle_event("preview_record", %{"record" => record_id}, socket) do
+    record =
+      case Sources.fetch(socket.assigns.sources, socket.assigns.doc_source) do
+        nil ->
+          nil
+
+        source ->
+          Enum.find(
+            socket.assigns.preview_records,
+            &(to_string(Source.id(source, &1)) == record_id)
+          )
+      end
+
+    {:noreply, socket |> assign(:preview_record, record) |> push_canvas()}
+  end
+
   ## Inspector
+
+  def handle_event(
+        "props",
+        %{"_target" => ["dynamic", key | _], "node" => id} = params,
+        socket
+      ) do
+    settings = get_in(params, ["dynamic", key]) || %{}
+
+    with node when not is_nil(node) <- Document.get(socket.assigns.doc, id),
+         %{} = binding <- Dynamic.binding(node, key) do
+      binding =
+        binding
+        |> Map.take(["field", "from"])
+        |> Map.merge(Dynamic.normalize_settings(settings))
+
+      change(socket, I18n.t("Edit the binding"), {:dynamic, id, key}, fn doc ->
+        with {:ok, doc} <- Document.put_binding(doc, id, key, binding, socket.assigns.registry),
+             do: {:ok, doc, id}
+      end)
+    else
+      _ -> {:noreply, socket}
+    end
+  end
 
   def handle_event("props", %{"_target" => ["props", field | _], "node" => id} = params, socket) do
     {key, raw} = suffixed_value(params["props"] || %{}, field)
@@ -571,6 +673,8 @@ defmodule ElementorexCms.Editor do
       case {key, get_in(params, ["attrs", key])} do
         {"hide_on", values} -> values |> List.wrap() |> Enum.reject(&(&1 == ""))
         {"animation_delay", value} -> to_int(value)
+        # A field just chosen comes without an operator yet
+        {"condition", %{} = condition} -> Map.put_new(condition, "op", "eq")
         {_key, value} -> value
       end
 
@@ -838,12 +942,92 @@ defmodule ElementorexCms.Editor do
   defp notify_change(socket), do: socket
 
   defp push_canvas(socket) do
-    %{doc: doc, registry: registry, id: id, render_data: data} = socket.assigns
-    ctx = Renderer.context(mode: :editor, registry: registry, data: data)
+    %{doc: doc, id: id} = socket.assigns
+    ctx = render_context(socket.assigns, :editor)
 
     html = doc |> Document.root() |> Renderer.render_node(ctx) |> Renderer.to_string_html()
 
     push_event(socket, "exr:#{id}:render", %{html: html, css: Style.css(doc, mode: :editor)})
+  end
+
+  @doc false
+  # How the document is rendered in the editor: with the sources, the host's
+  # data and, for templates of a source, the item picked in the top bar.
+  def render_context(assigns, mode) do
+    Renderer.context(
+      mode: mode,
+      registry: assigns.registry,
+      data: assigns.render_data,
+      sources: assigns.sources,
+      record: assigns.preview_record,
+      source: assigns.preview_record && Sources.fetch(assigns.sources, assigns.doc_source),
+      doc: assigns.doc
+    )
+  end
+
+  # The source of the document (templates of single items) and the items the
+  # top bar offers to preview it with. Loaded once connected.
+  defp assign_source(socket, key) do
+    key = if Source.valid_key?(key), do: key
+
+    cond do
+      key == socket.assigns.doc_source and socket.assigns.preview_loaded ->
+        socket
+
+      key == nil ->
+        assign(socket,
+          doc_source: nil,
+          preview_loaded: true,
+          preview_records: [],
+          preview_record: nil
+        )
+
+      not connected?(socket) ->
+        assign(socket, doc_source: key, preview_loaded: false)
+
+      true ->
+        socket |> assign(doc_source: key, preview_loaded: true) |> load_preview()
+    end
+  end
+
+  defp load_preview(socket) do
+    %{sources: sources, doc_source: key, render_data: data} = socket.assigns
+
+    case Sources.fetch(sources, key) do
+      nil ->
+        assign(socket, preview_records: [], preview_record: nil)
+
+      source ->
+        records =
+          try do
+            Source.list(source, %Query{limit: 50}, %{mode: :editor, data: data})
+          rescue
+            _error -> []
+          end
+
+        current =
+          socket.assigns.preview_record && Source.id(source, socket.assigns.preview_record)
+
+        record =
+          Enum.find(records, &(current != nil and Source.id(source, &1) == current)) ||
+            List.first(records)
+
+        assign(socket, preview_records: records, preview_record: record)
+    end
+  end
+
+  # A field the selected node can be bound to: of its item source or of `data`.
+  defp bindable_field(socket, _id, "site", key) do
+    socket.assigns.render_data |> Dynamic.site_fields() |> Enum.find(&(&1.key == key))
+  end
+
+  defp bindable_field(socket, id, _from, key) do
+    %{doc: doc, sources: sources, doc_source: doc_source, registry: registry} = socket.assigns
+
+    case Dynamic.item_source(doc, id, sources, doc_source, registry) do
+      nil -> nil
+      source -> Source.field(source, key)
+    end
   end
 
   defp update_list(socket, key, fun) do
@@ -908,7 +1092,18 @@ defmodule ElementorexCms.Editor do
   end
 
   defp new_node(socket, type) do
-    Document.node(type, %{}, registry: socket.assigns.registry)
+    node = Document.node(type, %{}, registry: socket.assigns.registry)
+    block = Registry.fetch(socket.assigns.registry, type)
+
+    # A new loop starts with the first source (or the document's own).
+    case {block && block.meta()[:loop], Sources.list(socket.assigns.sources)} do
+      {true, [first | _]} ->
+        key = socket.assigns.doc_source || first.key
+        put_in(node, ["props", "source"], key)
+
+      _ ->
+        node
+    end
   end
 
   defp normalize_node(node, registry) do

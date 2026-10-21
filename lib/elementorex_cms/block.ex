@@ -41,11 +41,15 @@ defmodule ElementorexCms.Block do
     * `:parents` - types this block may be placed in (default: any container)
     * `:palette` - `false` to hide the block from the palette
     * `:style` - style of new nodes, e.g. `%{"desktop" => %{"padding-top" => "24px"}}`
+    * `:loop` - `true` for containers that render their children once per item
+      of the source in their `source` prop (like the *Loop grid*): the editor
+      offers the fields of that source to the blocks inside
 
   ## Rendering
 
-  `render/1` receives every prop as an assign (with its default when missing)
-  plus:
+  `render/1` receives every prop as an assign (with its default when missing,
+  and with the value of its field when the prop is bound to dynamic content,
+  see `ElementorexCms.Dynamic`) plus:
 
     * `@node` - the node map (`"id"`, `"props"`, `"style"`, `"attrs"`, `"children"`)
     * `@ctx` - the `ElementorexCms.Renderer.Context` (`mode` is `:editor` on the
@@ -139,7 +143,8 @@ defmodule ElementorexCms.Block do
       children: Keyword.get(opts, :children, :any),
       parents: Keyword.get(opts, :parents, :any),
       palette: Keyword.get(opts, :palette, true),
-      style: Keyword.get(opts, :style, %{})
+      style: Keyword.get(opts, :style, %{}),
+      loop: Keyword.get(opts, :loop, false)
     }
 
     quote do

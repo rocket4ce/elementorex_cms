@@ -71,6 +71,16 @@ body { margin: 0; }
 .exr-inline-bar button:hover { background: rgb(255 255 255 / .14); color: #fff; }
 .exr-inline-bar svg { width: 15px; height: 15px; }
 .exr-preview-mode .exr-empty, .exr-preview-mode .exr-image-placeholder { display: none; }
+[data-ex-off] { opacity: .35 !important; filter: grayscale(1); }
+.exr-preview-mode [data-ex-off] { display: none !important; }
+[data-ex-loop-copy] { pointer-events: none; }
+.exr-preview-mode [data-ex-loop-copy] { pointer-events: auto; }
+.exr-loop-hint {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px;
+  border: 1px dashed rgb(13 148 136 / .5); border-radius: 8px; background: rgb(13 148 136 / .06);
+  color: rgb(15 118 110); font: 500 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+}
+.exr-preview-mode .exr-loop-hint { display: none; }
 `
 
 const ICONS = {

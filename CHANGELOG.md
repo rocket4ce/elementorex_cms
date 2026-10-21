@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+- Dynamic content (see the guide): sources (`ElementorexCms.Source`) with an
+  Ecto adapter that reads the fields of any schema (`ElementorexCms.Source.Ecto`,
+  or the schema itself in `config :elementorex_cms, sources: [...]`); bindings
+  of any prop to a field of the current item, with before/after text, fallback
+  and formats (`ElementorexCms.Dynamic`); the *Loop grid* block, with limit,
+  order, filters, related items and responsive columns; templates of single
+  records (`record=` on `ElementorexCms.Components.document/1`, `source=` and a
+  preview picker in the editor); display conditions of blocks on a field of
+  the item (*Advanced* tab); templates generated from each source;
+  `mix elementorex.gen.source`.
+- Pagination of the *Loop grid*: numbers, previous/next or both (links with
+  the page of each loop, `?<id>[page]=2`), a *Load more* button and infinite
+  scroll (the runtime fetches the next page and appends its items; links
+  without JavaScript). `params` on `ElementorexCms.Components.document/1` and
+  `ElementorexCms.to_html/2`; optional `count/2` of sources.
+- Search and filters for visitors (`ElementorexCms.Filters`): the *Filters*
+  form block and its fields (*Search box*, *Choice filter* with the values of
+  a field, *Range filter*, *Toggle filter*, *Sort*), applied in place by the
+  runtime or as a plain GET form; the state of each loop under its key in the
+  query string. Filters of your own: with logic in the source (`filters:` and
+  `filter/4` of `ElementorexCms.Source.Ecto`) or as blocks
+  (`mix elementorex.gen.filter`, `filter_name/2` and friends). Sources get the
+  search (`Query.search`), the `"in"` operator and optional `values/2`.
+- Editor: a database button next to every prop that can be bound, a field
+  picker, the settings of each binding, a *Dynamic* palette category and the
+  *Dynamic content* group of templates.
+
 ## 0.1.0 (unreleased)
 
 First version.

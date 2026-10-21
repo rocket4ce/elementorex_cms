@@ -7,8 +7,10 @@ defmodule ElementorexCms.Editor.Controls do
   use Phoenix.Component
 
   alias ElementorexCms.Block.Prop
+  alias ElementorexCms.Dynamic
   alias ElementorexCms.Heroicons
   alias ElementorexCms.I18n
+  alias ElementorexCms.Source
   alias Phoenix.LiveView.JS
 
   @theme_colors [
@@ -52,25 +54,253 @@ defmodule ElementorexCms.Editor.Controls do
   attr :index, :any, default: nil, doc: "index of the list item (nested fields)"
   attr :list, :string, default: nil, doc: "key of the list prop (nested fields)"
 
+  attr :dyn, :map,
+    default: nil,
+    doc: "dynamic content of the inspector: sources, item source, site fields, bindings"
+
   def prop(%{prop: %Prop{control: :repeater}} = assigns), do: repeater(assigns)
 
   def prop(assigns) do
+    dyn = assigns.dyn
+    top? = assigns.index == nil
+    binding = if top? and dyn, do: Map.get(dyn.bindings, assigns.prop.key)
+
+    bindable? =
+      binding != nil or
+        (top? and dyn != nil and Dynamic.bindable?(assigns.prop) and
+           (dyn.item_source != nil or dyn.site_fields != []))
+
+    assigns = assign(assigns, binding: binding, bindable?: bindable?)
+
     ~H"""
-    <div class={["exr-field", "exr-field-#{@prop.control}"]}>
-      <label :if={@prop.control != :toggle} class="exr-label" for={@id}>
-        {t(@prop.label)}
+    <div class={["exr-field", "exr-field-#{@prop.control}", @binding && "is-bound"]}>
+      <div :if={@prop.control != :toggle or @binding} class="exr-label">
+        <label for={@id}>{t(@prop.label)}</label>
         <span
-          :if={@prop.inline and @index == nil}
+          :if={@prop.inline and @index == nil and !@binding}
           class="exr-hint-chip"
           title={t("Double-click it on the canvas to type")}
         >
           <.i name="cursor-arrow-rays" />
         </span>
-      </label>
-      {control(assigns)}
-      <p :if={@prop.help} class="exr-help">{t(@prop.help)}</p>
+        <.dyn_button :if={@bindable?} prop={@prop} on={@binding != nil} target={@target} />
+      </div>
+      <%= if @binding do %>
+        {binding_control(assigns)}
+      <% else %>
+        {control(assigns)}
+        <p :if={@prop.help} class="exr-help">{t(@prop.help)}</p>
+      <% end %>
     </div>
     """
+  end
+
+  attr :prop, Prop, required: true
+  attr :on, :boolean, default: false
+  attr :target, :any, required: true
+
+  defp dyn_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      class={["exr-dyn-btn", @on && "is-on"]}
+      phx-click="dynamic_open"
+      phx-value-prop={@prop.key}
+      phx-target={@target}
+      title={if(@on, do: t("Change the field"), else: t("Show a field"))}
+      aria-label={t("Show a field")}
+      data-exr-dyn={@prop.key}
+    >
+      <.i name="circle-stack" />
+    </button>
+    """
+  end
+
+  ## Bindings (dynamic content)
+
+  defp binding_control(assigns) do
+    %{dyn: dyn, binding: binding, prop: prop} = assigns
+
+    field =
+      if binding["from"] == "site",
+        do: Enum.find(dyn.site_fields, &(&1.key == binding["field"])),
+        else: dyn.item_source && Source.field(dyn.item_source, binding["field"])
+
+    origin =
+      cond do
+        binding["from"] == "site" -> t("Site")
+        dyn.item_source -> t(dyn.item_source.label)
+        true -> t("Item")
+      end
+
+    assigns =
+      assign(assigns,
+        field: field,
+        origin: origin,
+        box: "#{assigns.id}-binding",
+        text?: prop.type not in [:integer, :number, :boolean, :datetime],
+        fallback?: prop.type != :boolean,
+        formats:
+          if(prop.type in [:integer, :number, :boolean, :datetime], do: [], else: formats(field))
+      )
+
+    ~H"""
+    <div class={["exr-binding", !@field && "is-missing"]} id={@box}>
+      <div class="exr-binding-head">
+        <span class="exr-binding-icon">
+          <.i name={
+            if(@field,
+              do: ElementorexCms.Editor.UI.type_icon(@field.type),
+              else: "exclamation-triangle"
+            )
+          } />
+        </span>
+        <button
+          type="button"
+          class="exr-binding-name"
+          phx-click={JS.toggle_class("is-open", to: "##{@box}")}
+          title={t("Settings")}
+        >
+          <small>{@origin}</small>
+          <b>{if(@field, do: t(@field.label), else: @binding["field"])}</b>
+        </button>
+        <span :if={summary(@binding) != ""} class="exr-binding-summary">{summary(@binding)}</span>
+        <button
+          :if={@text? or @fallback?}
+          type="button"
+          class="exr-icon-btn"
+          phx-click={JS.toggle_class("is-open", to: "##{@box}")}
+          title={t("Settings")}
+        >
+          <.i name="adjustments-horizontal" />
+        </button>
+        <button
+          type="button"
+          class="exr-icon-btn"
+          phx-click="dynamic_clear"
+          phx-value-prop={@prop.key}
+          phx-target={@target}
+          title={t("Remove the binding")}
+        >
+          <.i name="x-mark" />
+        </button>
+      </div>
+      <p :if={!@field} class="exr-help">{t("This field is not available here.")}</p>
+      <div class="exr-binding-body">
+        <div :if={@text?} class="exr-grid-2">
+          <div class="exr-field">
+            <label class="exr-label" for={"#{@id}-before"}>{t("Before")}</label>
+            <input
+              id={"#{@id}-before"}
+              type="text"
+              name={"dynamic[#{@prop.key}][before]"}
+              value={@binding["before"]}
+              class="exr-input"
+              phx-debounce="300"
+            />
+          </div>
+          <div class="exr-field">
+            <label class="exr-label" for={"#{@id}-after"}>{t("After")}</label>
+            <input
+              id={"#{@id}-after"}
+              type="text"
+              name={"dynamic[#{@prop.key}][after]"}
+              value={@binding["after"]}
+              class="exr-input"
+              phx-debounce="300"
+            />
+          </div>
+        </div>
+        <div :if={@fallback?} class="exr-field">
+          <label class="exr-label" for={"#{@id}-fallback"}>{t("When it has no value")}</label>
+          <input
+            id={"#{@id}-fallback"}
+            type="text"
+            name={"dynamic[#{@prop.key}][fallback]"}
+            value={@binding["fallback"]}
+            class="exr-input"
+            placeholder={t("Nothing")}
+            phx-debounce="300"
+          />
+        </div>
+        <div :if={@formats != []} class="exr-grid-2">
+          <div class="exr-field">
+            <label class="exr-label" for={"#{@id}-format"}>{t("Format")}</label>
+            <select
+              id={"#{@id}-format"}
+              name={"dynamic[#{@prop.key}][format]"}
+              class="exr-input exr-select"
+            >
+              <option value="">{t("As it is")}</option>
+              <option
+                :for={{label, value} <- @formats}
+                value={value}
+                selected={@binding["format"] == value}
+              >
+                {t(label)}
+              </option>
+            </select>
+          </div>
+          <div :if={@binding["format"] == "number"} class="exr-field">
+            <label class="exr-label" for={"#{@id}-decimals"}>{t("Decimals")}</label>
+            <input
+              id={"#{@id}-decimals"}
+              type="number"
+              min="0"
+              max="4"
+              name={"dynamic[#{@prop.key}][decimals]"}
+              value={@binding["decimals"]}
+              class="exr-input"
+              placeholder={t("As it is")}
+              phx-debounce="300"
+            />
+          </div>
+          <div :if={@binding["format"] == "excerpt"} class="exr-field">
+            <label class="exr-label" for={"#{@id}-length"}>{t("Characters")}</label>
+            <input
+              id={"#{@id}-length"}
+              type="number"
+              min="10"
+              max="2000"
+              name={"dynamic[#{@prop.key}][length]"}
+              value={@binding["length"] || 160}
+              class="exr-input"
+              phx-debounce="300"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @number_formats [{"Number", "number"}]
+  @date_formats [{"Date", "date"}, {"Date and time", "datetime"}, {"Time", "time"}]
+  @text_formats [{"Excerpt", "excerpt"}, {"Uppercase", "upper"}, {"Lowercase", "lower"}]
+
+  defp formats(nil), do: @number_formats ++ @date_formats ++ @text_formats
+  defp formats(%{type: type}) when type in [:integer, :number], do: @number_formats
+  defp formats(%{type: type}) when type in [:date, :datetime], do: @date_formats
+  defp formats(%{type: type}) when type in [:string, :text, :html], do: @text_formats
+  defp formats(_field), do: []
+
+  # "$ … · number"
+  defp summary(binding) do
+    around =
+      case {binding["before"], binding["after"]} do
+        {nil, nil} -> nil
+        {before, after_text} -> "#{before}…#{after_text}"
+      end
+
+    [around, binding["format"] && t(format_label(binding["format"]))]
+    |> Enum.filter(& &1)
+    |> Enum.join(" · ")
+  end
+
+  defp format_label(format) do
+    Enum.find_value(@number_formats ++ @date_formats ++ @text_formats, format, fn {label, value} ->
+      if value == format, do: label
+    end)
   end
 
   defp control(%{prop: %Prop{control: :text}} = assigns) do
@@ -158,19 +388,95 @@ defmodule ElementorexCms.Editor.Controls do
   end
 
   defp control(%{prop: %Prop{control: :toggle}} = assigns) do
+    assigns = assign_new(assigns, :bindable?, fn -> false end)
+
     ~H"""
-    <label class="exr-switch-row" for={@id}>
-      <span>{t(@prop.label)}</span>
-      <input type="hidden" name={@name} value="false" />
-      <input
-        type="checkbox"
-        id={@id}
-        name={@name}
-        value="true"
-        checked={@value == true}
-        class="exr-switch"
-      />
-    </label>
+    <div class="exr-switch-line">
+      <label class="exr-switch-row" for={@id}>
+        <span>{t(@prop.label)}</span>
+        <input type="hidden" name={@name} value="false" />
+        <input
+          type="checkbox"
+          id={@id}
+          name={@name}
+          value="true"
+          checked={@value == true}
+          class="exr-switch"
+        />
+      </label>
+      <.dyn_button :if={@bindable?} prop={@prop} target={@target} />
+    </div>
+    """
+  end
+
+  defp control(%{prop: %Prop{control: :source}} = assigns) do
+    sources = (assigns.dyn && assigns.dyn.sources) || []
+
+    assigns =
+      assign(assigns, sources: sources, known?: Enum.any?(sources, &(&1.key == assigns.value)))
+
+    ~H"""
+    <select id={@id} name={@name} class="exr-input exr-select">
+      <option value="">{t("Choose a collection")}</option>
+      <option :for={source <- @sources} value={source.key} selected={@value == source.key}>
+        {t(source.label)}
+      </option>
+      <option :if={@value != "" and !@known?} value={@value} selected>
+        {t("Unknown collection: %{source}", source: @value)}
+      </option>
+    </select>
+    <p :if={@sources == []} class="exr-help">
+      {t("There are no collections yet: add a source to the configuration.")}
+    </p>
+    """
+  end
+
+  defp control(%{prop: %Prop{control: :loop}} = assigns) do
+    loops = (assigns.dyn && assigns.dyn[:loops]) || []
+
+    assigns =
+      assign(assigns, loops: loops, known?: Enum.any?(loops, &(elem(&1, 1) == assigns.value)))
+
+    ~H"""
+    <select id={@id} name={@name} class="exr-input exr-select">
+      <option value="">{t("The first loop grid of the page")}</option>
+      <option :for={{label, id} <- @loops} value={id} selected={@value == id}>{label}</option>
+      <option :if={@value != "" and !@known?} value={@value} selected>
+        {t("A loop grid that is not on the page")}
+      </option>
+    </select>
+    <p :if={@loops == []} class="exr-help">
+      {t("Add a loop grid to the page: the filters work on it")}
+    </p>
+    """
+  end
+
+  defp control(%{prop: %Prop{control: :field}} = assigns) do
+    source = assigns.dyn && assigns.dyn.own_source
+
+    fields =
+      case {source, assigns.prop.only} do
+        {nil, _only} -> []
+        {source, :sortable} -> Enum.filter(source.fields, & &1.sortable)
+        {source, :filterable} -> Enum.filter(source.fields, & &1.filterable)
+        {source, _only} -> source.fields
+      end
+
+    assigns =
+      assign(assigns,
+        fields: fields,
+        known?: Enum.any?(fields, &(&1.key == assigns.value)),
+        empty: if(assigns.prop.only == :sortable, do: "Default order", else: "Choose a field")
+      )
+
+    ~H"""
+    <select id={@id} name={@name} class="exr-input exr-select">
+      <option value="">{t(@empty)}</option>
+      <option :for={field <- @fields} value={field.key} selected={@value == field.key}>
+        {t(field.label)}
+      </option>
+      <option :if={@value != "" and !@known?} value={@value} selected>{@value}</option>
+    </select>
     """
   end
 
@@ -385,7 +691,7 @@ defmodule ElementorexCms.Editor.Controls do
               phx-click={JS.toggle_class("is-open", to: "##{@id}-#{item["id"]}")}
             >
               <.i name="chevron-right" class="exr-rep-caret" />
-              <span class="exr-rep-title">{item_title(@prop, item, index)}</span>
+              <span class="exr-rep-title">{item_title(@prop, item, index, @dyn)}</span>
             </button>
             <button
               type="button"
@@ -449,6 +755,7 @@ defmodule ElementorexCms.Editor.Controls do
               media={@media}
               index={index}
               list={@prop.key}
+              dyn={@dyn}
             />
           </div>
         </div>
@@ -467,14 +774,28 @@ defmodule ElementorexCms.Editor.Controls do
     """
   end
 
-  defp item_title(prop, item, index) do
+  defp item_title(prop, item, index, dyn) do
     label = prop.item_label && item[prop.item_label]
+    label = if label == "", do: nil, else: field_label(prop, label, dyn)
 
     case label && ElementorexCms.HTML.Sanitizer.text(to_string(label)) do
       text when is_binary(text) and text != "" -> text
       _ -> t("Item %{n}", n: index + 1)
     end
   end
+
+  # Items titled by a field of the block's source (the filters of a loop) show
+  # the name of the field.
+  defp field_label(prop, key, %{own_source: %Source{} = source}) when is_binary(key) do
+    with %Prop{type: :field} <- Enum.find(prop.fields, &(&1.key == prop.item_label)),
+         %Source.Field{label: label} <- Source.field(source, key) do
+      t(label)
+    else
+      _ -> key
+    end
+  end
+
+  defp field_label(_prop, label, _dyn), do: label
 
   ## Shared inputs
 

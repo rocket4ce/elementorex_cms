@@ -172,7 +172,7 @@ defmodule ElementorexCms.BlocksTest do
 
     test "palette groups by category" do
       categories = Registry.default() |> Registry.palette() |> Enum.map(&elem(&1, 0))
-      assert categories == [:layout, :basic, :components, :media, :advanced]
+      assert categories == [:layout, :basic, :components, :media, :dynamic, :advanced]
     end
   end
 

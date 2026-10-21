@@ -19,7 +19,8 @@ defmodule ElementorexCms.Block.Helpers do
 
     * `data-ex-id` - the node id; the node's CSS is scoped to it
     * `id` and `class` from the *Advanced* tab, merged with `:class`
-    * on the canvas, `data-ex-type` and `data-ex-container` for the editor
+    * on the canvas, `data-ex-type` and `data-ex-container` for the editor,
+      and `data-ex-off` when its display condition fails for the item
 
   Options:
 
@@ -42,14 +43,15 @@ defmodule ElementorexCms.Block.Helpers do
 
         [{"data-ex-type", node["type"]}] ++
           if(meta[:container], do: [{"data-ex-container", "true"}], else: []) ++
-          if(attrs["label"] not in [nil, ""], do: [{"data-ex-label", attrs["label"]}], else: [])
+          if(attrs["label"] not in [nil, ""], do: [{"data-ex-label", attrs["label"]}], else: []) ++
+          if(ElementorexCms.Dynamic.visible?(node, ctx), do: [], else: [{"data-ex-off", "true"}])
       else
         []
       end
 
     [{"data-ex-id", node["id"]}] ++
       editor ++
-      if(attrs["id"] not in [nil, ""], do: [{"id", attrs["id"]}], else: []) ++
+      if(attrs["id"] not in [nil, ""], do: [{"id", css_id(attrs["id"], ctx)}], else: []) ++
       if(classes != "", do: [{"class", classes}], else: []) ++
       if(opts[:style] not in [nil, false, ""], do: [{"style", opts[:style]}], else: []) ++
       Keyword.get(opts, :attrs, [])
@@ -58,14 +60,29 @@ defmodule ElementorexCms.Block.Helpers do
   defp meta_of(nil), do: %{}
   defp meta_of(block), do: block.meta()
 
+  # The repetitions of a loop cannot share the CSS id of the first item.
+  defp css_id(id, %{item: %{index: index}}) when is_integer(index) and index > 0,
+    do: "#{id}-#{index + 1}"
+
+  defp css_id(id, _ctx), do: id
+
   @doc """
   Marks the element that holds an inline-editable prop: on the canvas the user
-  double-clicks it to type. Outside the editor it adds nothing.
+  double-clicks it to type. Outside the editor it adds nothing, and neither does
+  it for props bound to dynamic content (their value comes from the data).
 
       <h2 {inline(assigns, :text)}>{@text}</h2>
   """
   @spec inline(map(), atom() | String.t()) :: [{String.t(), String.t()}]
   def inline(%{ctx: %{mode: :editor} = ctx, node: node}, prop) do
+    if ElementorexCms.Dynamic.binding(node, prop),
+      do: [],
+      else: inline_attrs(ctx, node, prop)
+  end
+
+  def inline(_assigns, _prop), do: []
+
+  defp inline_attrs(ctx, node, prop) do
     kind =
       with block when not is_nil(block) <-
              ElementorexCms.Registry.fetch(ctx.registry, node["type"]),
@@ -77,8 +94,6 @@ defmodule ElementorexCms.Block.Helpers do
 
     [{"data-ex-inline", to_string(prop)}, {"data-ex-inline-kind", kind}]
   end
-
-  def inline(_assigns, _prop), do: []
 
   @doc "Whether the block is being rendered on the editor canvas."
   @spec editor?(map()) :: boolean()
@@ -141,6 +156,38 @@ defmodule ElementorexCms.Block.Helpers do
     do: [{"href", url}, {"target", "_blank"}, {"rel", "noopener noreferrer"}]
 
   def link_attrs(url, _new_tab), do: [{"href", url}]
+
+  ## Visitors' filters (blocks inside a filter form, see ElementorexCms.Filters)
+
+  @doc """
+  The name of an input of the filter form the block is in:
+  `filter_name(assigns, "q")` → `"catalog[q]"`, `filter_name(assigns,
+  [@field, ""])` → `"catalog[category][]"`, `filter_name(assigns, [@field,
+  "min"])` → `"catalog[price][min]"`. `nil` outside a filter form.
+  """
+  @spec filter_name(map(), String.t() | [String.t()]) :: String.t() | nil
+  defdelegate filter_name(assigns, path), to: ElementorexCms.Filters, as: :name
+
+  @doc "The value the visitor gave to an entry of the filter form (`nil` if none)."
+  @spec filter_value(map(), String.t() | [String.t()]) :: term()
+  defdelegate filter_value(assigns, path), to: ElementorexCms.Filters, as: :value
+
+  @doc "Whether `option` is the value (or one of the values) of an entry of the filter form."
+  @spec filter_checked?(map(), String.t() | [String.t()], term()) :: boolean()
+  defdelegate filter_checked?(assigns, path, option), to: ElementorexCms.Filters, as: :checked?
+
+  @doc "The options of a field of the filtered source: `[%{label:, value:, count:}]`."
+  @spec filter_options(map(), String.t()) :: [map()]
+  defdelegate filter_options(assigns, key), to: ElementorexCms.Filters, as: :options
+
+  @doc "The field `key` of the filtered source (`ElementorexCms.Source.Field`), or `nil`."
+  @spec filter_field(map(), String.t()) :: ElementorexCms.Source.Field.t() | nil
+  defdelegate filter_field(assigns, key), to: ElementorexCms.Filters, as: :field
+
+  @doc "Whether the block is in a filter form (that targets a loop grid)."
+  @spec filter_form?(map()) :: boolean()
+  def filter_form?(%{ctx: %{form: %{key: _}}}), do: true
+  def filter_form?(_assigns), do: false
 
   @doc "Translates a string of the block (see `ElementorexCms.I18n`)."
   @spec t(String.t(), keyword()) :: String.t()

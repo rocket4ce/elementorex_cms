@@ -16,8 +16,8 @@ defmodule ElementorexCms.MixProject do
       description:
         "A visual, drag & drop content builder for Phoenix LiveView (in the spirit of " <>
           "Elementor): an editor with live canvas, DOM tree, inspector and HTML/CSS view, " <>
-          "a JSON document model, daisyUI 5 + Heroicons blocks, safe server-side rendering " <>
-          "and generators for custom blocks and templates.",
+          "a JSON document model, daisyUI 5 + Heroicons blocks, dynamic content from your " <>
+          "Ecto schemas, safe server-side rendering and generators for custom blocks and templates.",
       package: package(),
       docs: docs(),
       source_url: @source_url
@@ -63,10 +63,17 @@ defmodule ElementorexCms.MixProject do
         "README.md",
         "guides/blocks.md",
         "guides/host_integration.md",
+        "guides/dynamic_content.md",
         "CHANGELOG.md",
         "LICENSE"
       ],
-      groups_for_extras: [Guides: ["guides/blocks.md", "guides/host_integration.md"]],
+      groups_for_extras: [
+        Guides: [
+          "guides/blocks.md",
+          "guides/host_integration.md",
+          "guides/dynamic_content.md"
+        ]
+      ],
       groups_for_modules: [
         Documents: [
           ElementorexCms.Document,
@@ -79,6 +86,15 @@ defmodule ElementorexCms.MixProject do
           ElementorexCms.Block.Helpers,
           ElementorexCms.Registry,
           ~r/ElementorexCms\.Blocks\./
+        ],
+        "Dynamic content": [
+          ElementorexCms.Source,
+          ElementorexCms.Source.Ecto,
+          ElementorexCms.Source.Field,
+          ElementorexCms.Source.Query,
+          ElementorexCms.Sources,
+          ElementorexCms.Dynamic,
+          ElementorexCms.Filters
         ],
         Rendering: [
           ElementorexCms.Renderer,

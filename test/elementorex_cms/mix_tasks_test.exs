@@ -60,6 +60,77 @@ defmodule ElementorexCms.MixTasksTest do
     end)
   end
 
+  test "gen.filter creates a filter block that works in a Filters form", %{dir: dir} do
+    in_dir(dir, fn ->
+      Mix.Tasks.Elementorex.Gen.Filter.run(~w(Shop.PriceRanges))
+
+      source = assert_valid_elixir("lib/elementorex_cms_web/blocks/shop/price_ranges.ex")
+      assert source =~ ~s(parents: ["filters"])
+      assert_valid_elixir("test/elementorex_cms_web/blocks/shop/price_ranges_test.exs")
+
+      [{module, _}] = Code.compile_string(source)
+
+      registry =
+        ElementorexCms.Registry.new(blocks: ElementorexCms.Registry.builtin() ++ [module])
+
+      import ElementorexCms.Builder
+
+      filter = block("price_ranges", %{field: "price"}, registry: registry)
+      form = block("filters", %{}, children: [filter], registry: registry)
+      grid = block("loop", %{}, attrs: %{"id" => "grid"}, registry: registry)
+
+      html =
+        ElementorexCms.Renderer.to_html(doc([form, grid]),
+          registry: registry,
+          params: %{"grid" => %{"price" => "20000..50000"}}
+        )
+
+      assert html =~ ~s(name="grid[price]")
+      assert html =~ ~s(value="20000..50000" checked)
+    end)
+  end
+
+  describe "gen.source" do
+    test "makes a schema a source of dynamic content", %{dir: dir} do
+      in_dir(dir, fn ->
+        Mix.Tasks.Elementorex.Gen.Source.run(~w(ElementorexCms.TestProduct --path /shop/:slug))
+
+        source = assert_valid_elixir("lib/elementorex_cms_web/sources/products.ex")
+        assert source =~ "defmodule ElementorexCmsWeb.Sources.Products do"
+        assert source =~ "schema: ElementorexCms.TestProduct"
+        assert source =~ ~s(path: "/shop/:slug")
+        assert source =~ ~s(fields: [price: [defaults: %{"format" => "number"}]])
+        assert source =~ "where(query, [r], r.status == :published)"
+        assert source == Code.format_string!(source) |> IO.iodata_to_binary() |> Kernel.<>("\n")
+
+        [{module, _}] = Code.compile_string(source)
+        assert module.key() == "products"
+        assert module.label() == "Products"
+        assert module.url(%ElementorexCms.TestProduct{slug: "cap"}) == "/shop/cap"
+      end)
+
+      assert_received {:mix_shell, :info, [_]}
+    end
+
+    test "without a path nor a published flag", %{dir: dir} do
+      in_dir(dir, fn ->
+        Mix.Tasks.Elementorex.Gen.Source.run(~w(ElementorexCms.TestCategory --label Kinds))
+
+        source = assert_valid_elixir("lib/elementorex_cms_web/sources/categories.ex")
+        assert source =~ ~s(label: "Kinds")
+        assert source =~ ~s(#     path: "/categories/:id",)
+        assert source =~ "#     def scope(query, _context)"
+        assert source == Code.format_string!(source) |> IO.iodata_to_binary() |> Kernel.<>("\n")
+      end)
+    end
+
+    test "rejects what is not a schema" do
+      assert_raise Mix.Error, ~r/not an Ecto schema/, fn ->
+        Mix.Tasks.Elementorex.Gen.Source.run(["Nothing.Here"])
+      end
+    end
+  end
+
   test "gen.cms creates the whole CMS", %{dir: dir} do
     in_dir(dir, fn ->
       Mix.Tasks.Elementorex.Gen.Cms.run(~w(Pages Page pages --binary-id))
@@ -72,6 +143,12 @@ defmodule ElementorexCms.MixTasksTest do
       assert schema =~ "@primary_key {:id, :binary_id, autogenerate: true}"
 
       assert assert_valid_elixir("lib/elementorex_cms/pages.ex") =~ "def update_page_body"
+
+      show = assert_valid_elixir("lib/elementorex_cms_web/live/page_live/show.ex")
+      assert show =~ "assign(:params, params)"
+
+      assert File.read!("lib/elementorex_cms_web/live/page_live/show.html.heex") =~
+               "params={@params}"
 
       for file <- ~w(index editor show) do
         assert_valid_elixir("lib/elementorex_cms_web/live/page_live/#{file}.ex")

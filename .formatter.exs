@@ -2,7 +2,7 @@
 locals_without_parens = [prop: 2, prop: 3]
 
 [
-  import_deps: [:phoenix, :phoenix_live_view],
+  import_deps: [:ecto, :phoenix, :phoenix_live_view],
   plugins: [Phoenix.LiveView.HTMLFormatter],
   inputs: ["*.{heex,ex,exs}", "{config,lib,test}/**/*.{heex,ex,exs}"],
   locals_without_parens: locals_without_parens,

@@ -14,6 +14,20 @@ defmodule ElementorexCms.Builder do
 
   Props get the defaults of their block, so only what differs needs to be given.
   Pass `registry:` to build with a custom registry.
+
+  Dynamic content: `loop/4` repeats its children for the items of a source, and
+  `dynamic:` binds props to fields of the item (see `ElementorexCms.Dynamic`):
+
+      loop("products", [
+        block("card", %{title: "Product", button_label: "View"},
+          dynamic: %{
+            title: "name",
+            image: "image_url",
+            badge: [field: "price", before: "$", format: "number", decimals: 0],
+            button_url: "@url"
+          }
+        )
+      ], %{limit: 6, columns: "3"})
   """
 
   alias ElementorexCms.Document
@@ -34,7 +48,8 @@ defmodule ElementorexCms.Builder do
 
   @doc """
   A node of `type`. Options: `:id`, `:children`, `:style` (per state), `:attrs`
-  (*Advanced* settings) and `:registry`.
+  (*Advanced* settings), `:dynamic` (prop → field key or binding settings) and
+  `:registry`.
   """
   @spec block(String.t(), map() | keyword(), keyword()) :: map()
   def block(type, props \\ %{}, opts \\ []) do
@@ -47,8 +62,23 @@ defmodule ElementorexCms.Builder do
       |> put_opt(:children, opts[:children])
       |> put_opt(:style, opts[:style] && stringify(opts[:style]))
       |> put_opt(:attrs, opts[:attrs] && stringify(opts[:attrs]))
+      |> put_opt(:dynamic, opts[:dynamic] && Map.new(opts[:dynamic]))
 
     Document.node(type, props, node_opts)
+  end
+
+  @doc """
+  A *Loop grid* (`ElementorexCms.Blocks.Loop`) of the source with key `source`:
+  `children` are the content of one item, repeated for each.
+  """
+  def loop(source, children, props \\ %{}, opts \\ []) do
+    props = props |> Map.new(fn {key, value} -> {to_string(key), value} end)
+
+    block(
+      "loop",
+      Map.put(props, "source", to_string(source)),
+      Keyword.put(opts, :children, children)
+    )
   end
 
   @doc "A section with these children."

@@ -11,11 +11,15 @@ with a live canvas that renders your site's own CSS.
   formatting bar, **drag and drop** between palette, canvas and tree, an
   **HTML / CSS / JSON** drawer, undo/redo with history, templates, keyboard
   shortcuts, image uploads and a media library.
-- **34 blocks** built with **daisyUI 5** and **Heroicons** (inline SVG, so any
+- **35 blocks** built with **daisyUI 5** and **Heroicons** (inline SVG, so any
   icon picked at runtime works): sections, flex containers, responsive grids,
   hero, headings, rich text, buttons, icon boxes, lists, alerts, badges, cards,
   stats, steps, countdown, accordion, tabs, timeline, rating, progress, avatar,
-  chat, testimonials, carousel, video, mockups, HTML…
+  chat, testimonials, carousel, video, mockups, HTML, loop grid…
+- **Dynamic content**: your Ecto schemas (from `mix phx.gen.live` or your own
+  migrations) become collections the editor can list in a *Loop grid*; any prop
+  of any block can show a field of the current item (with format, prefix and
+  fallback), and a document rendered with a record is the template of its page.
 - **Your own blocks** with a tiny DSL (`use ElementorexCms.Block` + `prop`), or
   `mix elementorex.gen.block`.
 - **Documents are data**: a JSON tree you keep in a `jsonb` column
@@ -62,7 +66,8 @@ const liveSocket = new LiveSocket("/live", Socket, {
 ```
 
 `hooks` has `ElementorexEditor` (the editor) and `ElementorexRuntime` (keeps
-countdowns ticking on your site). Pages rendered by controllers can call
+countdowns ticking on your site, loads the next pages of loop grids with
+*Load more* or infinite scroll and applies the visitors' filters in place). Pages rendered by controllers can call
 `initElementorex()` from `"elementorex_cms/runtime"` instead.
 
 ### 2. CSS
@@ -124,11 +129,49 @@ Show them:
 
 ```heex
 <div phx-hook="ElementorexRuntime" id="page-body">
-  <ElementorexCms.Components.document document={@page.body} />
+  <ElementorexCms.Components.document document={@page.body} params={@params} />
 </div>
 ```
 
+(`params`, from `mount/3`, tell loop grids which page, search and filters the
+visitor chose.)
+
 Or generate all of it: `mix elementorex.gen.cms Pages Page pages`.
+
+## Dynamic content
+
+Make a schema a source of dynamic content (a product table made with
+`mix phx.gen.live`, for instance):
+
+```elixir
+config :elementorex_cms, sources: [MyApp.Catalog.Product]
+```
+
+or, to choose the fields, link each record to its page and keep drafts off your
+site, `mix elementorex.gen.source Catalog.Product --path "/products/:slug"`.
+
+In the editor, the *Loop grid* repeats its content for the products (limit,
+order, filters, and pages: numbers, previous/next, a *Load more* button or
+infinite scroll). The *Filters* block gives visitors a search box, choices
+with the values of a column, ranges, toggles and the order, and you can write
+your own filters (`mix elementorex.gen.filter`, or logic in the source). The
+database button next to any prop shows a field of the
+current product instead: the name in a heading, the photo in an image, the price
+with `$` and thousands separators in a badge, the product's page in a button.
+*Display conditions* (in the *Advanced* tab) show a block only for some items:
+a *Sold out* badge when the stock is 0, the *Buy now* button when it is not.
+The *Templates* panel builds grids, lists and the page of one product from the
+fields of each source.
+
+A document is the template of the page of each product when the editor gets
+`source="products"` (the top bar picks the product on the canvas) and the page
+renders it with the product:
+
+```heex
+<ElementorexCms.Components.document document={@template.body} record={@product} />
+```
+
+See the [dynamic content guide](guides/dynamic_content.md).
 
 ## The editor
 
@@ -148,8 +191,9 @@ blocks · ⌫ delete · ↑/↓ select siblings · ⌥↑/⌥↓ move · Esc par
 `id`, `document`, `title`, `subtitle`, `back`, `canvas`
 (`ElementorexCms.Canvas`), `registry` (`ElementorexCms.Registry`), `templates`,
 `media` + `media_context` (`ElementorexCms.Media`), `data` (passed to blocks),
-`locale`, `notify_changes`, `fullscreen` (default `true`), `inline_css`,
-`remount_key`. Slots: `:status`, `:actions`. See `ElementorexCms.Editor`.
+`sources` + `source` (dynamic content, `ElementorexCms.Source`), `locale`,
+`notify_changes`, `fullscreen` (default `true`), `inline_css`, `remount_key`.
+Slots: `:status`, `:actions`. See `ElementorexCms.Editor`.
 
 ### The canvas
 
@@ -245,7 +289,8 @@ config :elementorex_cms, blocks: [MyAppWeb.Blocks.Pricing]
 ```
 
 See the [blocks guide](guides/blocks.md) for prop types, controls, containers
-and the rules for class names.
+and the rules for class names. Every prop of your blocks (but lists) can be
+bound to dynamic content too.
 
 ## Generators
 
@@ -254,6 +299,8 @@ and the rules for class names.
 | `mix elementorex.gen.cms Pages Page pages` | migration, schema, context, admin list, editor page and public page |
 | `mix elementorex.gen.block Pricing` | a block and its test |
 | `mix elementorex.gen.template Marketing` | a module of ready-made sections |
+| `mix elementorex.gen.source Catalog.Product` | a source of dynamic content for an Ecto schema |
+| `mix elementorex.gen.filter PriceRanges` | a filter block of your own for the visitors' *Filters* forms |
 | `mix elementorex.gen.locale es pt ja` | the strings of your blocks and templates to translate, one module per language |
 | `mix elementorex.install` | nothing: checks the setup and prints what is missing |
 
@@ -298,6 +345,8 @@ config :elementorex_cms,
   blocks: [MyAppWeb.Blocks.Pricing],     # added to the built-in ones
   exclude_blocks: ["video"],             # built-in types to leave out
   templates: [MyAppWeb.EditorTemplates.Marketing],
+  sources: [MyApp.Catalog.Product],      # dynamic content: schemas or source modules
+  repo: MyApp.Repo,                      # of Ecto sources without `repo:` (default: the app's first)
   time_zone: "America/Santiago",         # of countdown targets (needs a tz database, e.g. :tz)
   translations: %{"es" => %{"Pricing" => "Precios"}} # a few strings, win over everything
 ```
@@ -312,6 +361,10 @@ config :elementorex_cms,
 - Custom CSS loses `<`, `@import`, `expression()`, `behavior`, `javascript:`
   and unsafe `url()`s, and is nested inside its element with CSS nesting.
 - Node ids are validated, so selectors cannot be broken out of.
+- Dynamic content only reads the fields a source offers (secrets and
+  `redact: true` fields are left out of Ecto sources) and casts their values
+  like any other value of the prop; site values are only top-level text,
+  numbers and dates of `data`.
 
 ## Development
 
