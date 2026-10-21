@@ -4,15 +4,24 @@
     id={@editor}
     document={@page.body}
     title={@page.title}
-    subtitle={"/p/#{@page.slug}"}
+    subtitle={if(@source, do: @source_path, else: "/p/#{@page.slug}")}
     back={~p"/admin/pages"}
     canvas={@canvas}
     media={Example.EditorMedia}
     media_context={%{page_id: @page.id}}
     data={Example.site_data()}
+    source={@page.source}
     locale={@locale}
   >
     <:status>
+      <span
+        :if={@source}
+        id="template-source"
+        class="exr-pill"
+        title={tr("Dynamic content", @locale)}
+      >
+        {tr(@source.label, @locale)}
+      </span>
       <span class={["exr-pill", @page.status == :draft && "exr-pill-warn"]}>
         {tr(if(@page.status == :published, do: "Published", else: "Draft"), @locale)}
       </span>
@@ -20,7 +29,7 @@
     <:actions>
       <Layouts.language_select id="page-editor-locale" locale={@locale} />
       <.link
-        :if={@page.status == :published}
+        :if={@page.status == :published and !@page.source}
         href={~p"/p/#{@page.slug}"}
         target="_blank"
         class="exr-btn exr-ghost"

@@ -24,11 +24,22 @@ defmodule ExampleWeb.Router do
       # Public pages built with the visual editor
       live "/p/:slug", PageLive.Show, :show
 
+      # The page of each product: the products template made in the editor
+      # (a page whose kind is "Template of Products"), rendered with the product
+      live "/shop/:slug", ShopLive.Product, :show
+
       # No authentication: this app is a test bench for the library. In a real
       # app these go inside the authenticated admin live_session.
       live "/admin/pages", PageLive.Index, :index
       live "/admin/pages/:id/edit", PageLive.Editor, :edit
       live "/playground", PlaygroundLive, :index
+
+      # mix phx.gen.live Catalog Product products name:string slug:string:unique ...
+      # (the dynamic content of the shop, see ExampleWeb.Sources.Products)
+      live "/products", ProductLive.Index, :index
+      live "/products/new", ProductLive.Form, :new
+      live "/products/:id", ProductLive.Show, :show
+      live "/products/:id/edit", ProductLive.Form, :edit
     end
   end
 

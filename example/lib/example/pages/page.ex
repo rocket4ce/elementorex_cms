@@ -1,6 +1,10 @@
 defmodule Example.Pages.Page do
   @moduledoc """
   A page built with the visual editor (ElementorexCms). `body` is the document.
+
+  A page with a `source` (the key of a source of dynamic content, such as
+  `"products"`) is not shown at `/p/:slug`: it is the template of the pages of
+  that source's records, e.g. `/shop/:slug` for each product.
   """
 
   use Ecto.Schema
@@ -15,6 +19,7 @@ defmodule Example.Pages.Page do
     field :body, ElementorexCms.Ecto.Document, default: ElementorexCms.Document.new()
     field :status, Ecto.Enum, values: [:draft, :published], default: :draft
     field :published_at, :utc_datetime
+    field :source, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -22,8 +27,9 @@ defmodule Example.Pages.Page do
   @doc false
   def changeset(page, attrs) do
     page
-    |> cast(attrs, [:title, :slug, :status])
+    |> cast(attrs, [:title, :slug, :status, :source])
     |> validate_required([:title])
+    |> validate_source()
     |> put_slug()
     |> validate_required([:slug])
     |> validate_format(:slug, ~r/\A[a-z0-9]+(-[a-z0-9]+)*\z/,
@@ -35,6 +41,14 @@ defmodule Example.Pages.Page do
 
   @doc false
   def body_changeset(page, body), do: cast(page, %{body: body}, [:body])
+
+  defp validate_source(changeset) do
+    validate_change(changeset, :source, fn :source, source ->
+      if ElementorexCms.Sources.fetch(ElementorexCms.Sources.default(), source),
+        do: [],
+        else: [source: "is not a source of dynamic content"]
+    end)
+  end
 
   defp put_slug(changeset) do
     case {get_field(changeset, :slug), get_field(changeset, :title)} do

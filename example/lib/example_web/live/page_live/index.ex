@@ -11,6 +11,7 @@ defmodule ExampleWeb.PageLive.Index do
      socket
      |> assign(:page_title, "Pages")
      |> assign(:form, to_form(Pages.change_page(%Page{})))
+     |> assign(:kinds, kinds())
      |> stream(:pages, Pages.list_pages())}
   end
 
@@ -34,5 +35,11 @@ defmodule ExampleWeb.PageLive.Index do
     page = Pages.get_page!(id)
     {:ok, _} = Pages.delete_page(page)
     {:noreply, stream_delete(socket, :pages, page)}
+  end
+
+  # A page, or the template of the records of a source of dynamic content.
+  defp kinds do
+    sources = ElementorexCms.Sources.default() |> ElementorexCms.Sources.list()
+    [{"Page", ""} | Enum.map(sources, &{"Template of #{&1.label}", &1.key})]
   end
 end

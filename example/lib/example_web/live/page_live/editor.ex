@@ -11,10 +11,17 @@ defmodule ExampleWeb.PageLive.Editor do
   def mount(%{"id" => id}, _session, socket) do
     page = Pages.get_page!(id)
 
+    # A template of a source (the page of each product) is edited with the
+    # fields of that source and a product to preview it with.
+    source =
+      page.source && ElementorexCms.Sources.fetch(ElementorexCms.Sources.default(), page.source)
+
     {:ok,
      socket
      |> assign(:page_title, page.title)
      |> assign(:page, page)
+     |> assign(:source, source)
+     |> assign(:source_path, source && "/shop/:slug")
      |> assign(:editor, @editor)
      |> assign(:canvas, canvas())}
   end

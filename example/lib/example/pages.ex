@@ -16,9 +16,23 @@ defmodule Example.Pages do
   @doc "Gets a page. Raises if it does not exist."
   def get_page!(id), do: Repo.get!(Page, id)
 
-  @doc "The published page with `slug`, or `nil`."
+  @doc "The published page with `slug`, or `nil`. Templates are not pages."
   def get_published_page(slug) do
-    Repo.get_by(Page, slug: slug, status: :published)
+    Page
+    |> where([p], p.slug == ^slug and p.status == :published and is_nil(p.source))
+    |> Repo.one()
+  end
+
+  @doc """
+  The published template of the records of `source` (`"products"`): the
+  newest one, or `nil`.
+  """
+  def get_template(source) do
+    Page
+    |> where([p], p.source == ^source and p.status == :published)
+    |> order_by(desc: :updated_at)
+    |> limit(1)
+    |> Repo.one()
   end
 
   def create_page(attrs) do

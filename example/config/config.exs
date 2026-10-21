@@ -80,9 +80,14 @@ config :elementorex_cms,
   blocks: [
     ExampleWeb.Blocks.Pricing,
     ExampleWeb.Blocks.Whatsapp,
-    ExampleWeb.Blocks.Marketing.Callout
+    ExampleWeb.Blocks.Marketing.Callout,
+    # A filter of the visitors' Filters forms (mix elementorex.gen.filter PriceRanges)
+    ExampleWeb.Blocks.PriceRanges
   ],
-  templates: [ExampleWeb.EditorTemplates.Marketing],
+  templates: [ExampleWeb.EditorTemplates.Marketing, ExampleWeb.EditorTemplates.Shop],
+  # Dynamic content: the products of the shop (mix elementorex.gen.source
+  # Catalog.Product). A schema works too: `sources: [Example.Catalog.Product]`
+  sources: [ExampleWeb.Sources.Products],
   # Strings of the blocks and templates above, generated with
   # `mix elementorex.gen.locale es pt de fr it ja`
   locales: [

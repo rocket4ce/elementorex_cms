@@ -11,7 +11,7 @@
     </p>
   </section>
 
-  <section class="mt-10 grid gap-4 md:grid-cols-3">
+  <section class="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
     <.feature_card
       id="home-pages"
       href={~p"/admin/pages"}
@@ -24,7 +24,14 @@
       href={~p"/p/every-block"}
       icon="hero-squares-2x2"
       title="Every block"
-      text="The 34 built-in blocks plus Pricing, WhatsApp and Callout, with responsive and hover styles, animations and custom CSS."
+      text="The built-in blocks plus Pricing, WhatsApp and Callout, with responsive and hover styles, animations and custom CSS."
+    />
+    <.feature_card
+      id="home-shop"
+      href={~p"/p/shop"}
+      icon="hero-shopping-bag"
+      title="Online shop"
+      text="Products scaffolded with mix phx.gen.live, shown by loop grids and a product template made in the editor (dynamic content)."
     />
     <.feature_card
       id="home-playground"

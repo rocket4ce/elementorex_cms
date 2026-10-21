@@ -15,6 +15,9 @@
       <div class="min-w-48">
         <.input field={@form[:slug]} type="text" label="Slug (optional)" />
       </div>
+      <div class="min-w-48">
+        <.input field={@form[:source]} type="select" label="Kind" options={@kinds} />
+      </div>
       <.button phx-disable-with="Creating…">New page</.button>
     </.form>
 
@@ -22,12 +25,20 @@
       <p id="pages-empty" class="hidden py-8 text-center opacity-60 only:block">No pages yet.</p>
       <div :for={{id, page} <- @streams.pages} id={id} class="flex items-center gap-3 py-3">
         <div class="min-w-0 flex-1">
-          <p class="font-medium">{page.title}</p>
-          <p class="text-sm opacity-60">/p/{page.slug} · {page.status}</p>
+          <p class="flex items-center gap-2 font-medium">
+            {page.title}
+            <span :if={page.source} class="badge badge-sm badge-accent badge-soft gap-1">
+              <.icon name="hero-circle-stack" class="size-3" /> template of {page.source}
+            </span>
+          </p>
+          <p :if={!page.source} class="text-sm opacity-60">/p/{page.slug} · {page.status}</p>
+          <p :if={page.source} class="text-sm opacity-60">
+            the page of each item of {page.source} · {page.status}
+          </p>
         </div>
         <.link navigate={"/admin/pages/#{page.id}/edit"} class="btn btn-sm">Edit</.link>
         <.link
-          :if={page.status == :published}
+          :if={page.status == :published and !page.source}
           href={"/p/#{page.slug}"}
           target="_blank"
           class="btn btn-sm btn-ghost"

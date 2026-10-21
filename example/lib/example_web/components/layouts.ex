@@ -54,6 +54,8 @@ defmodule ExampleWeb.Layouts do
           </.link>
         </div>
         <ul class="flex items-center gap-1">
+          <li><.link navigate={~p"/p/shop"} class="btn btn-ghost btn-sm">Shop</.link></li>
+          <li><.link navigate={~p"/products"} class="btn btn-ghost btn-sm">Products</.link></li>
           <li><.link navigate={~p"/admin/pages"} class="btn btn-ghost btn-sm">Pages</.link></li>
           <li><.link navigate={~p"/playground"} class="btn btn-ghost btn-sm">Playground</.link></li>
           <li><.language_menu locale={@locale} /></li>

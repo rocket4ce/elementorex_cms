@@ -5,7 +5,8 @@ defmodule Example.Showcase do
 
     * `all_blocks/0` - every built-in block plus the app's own ones, with
       responsive and `:hover` styles and the *Advanced* settings (CSS id,
-      classes, hide per device, entrance animations, scoped custom CSS, names)
+      classes, hide per device, entrance animations, scoped custom CSS, names),
+      and a loop grid of the products (dynamic content)
     * `templates/0` - every template of the *Templates* panel, one after the
       other (built-in and `ExampleWeb.EditorTemplates.Marketing`)
     * `modal/0` - a short document for the modal playground
@@ -24,6 +25,7 @@ defmodule Example.Showcase do
         basic(),
         components(),
         media(),
+        dynamic(),
         advanced(),
         custom()
       ],
@@ -368,6 +370,31 @@ defmodule Example.Showcase do
       ],
       %{gap: "6"},
       attrs: %{"id" => "media", "label" => "Media"}
+    )
+  end
+
+  defp dynamic do
+    section(
+      [
+        title("Dynamic content", "loop grid · bindings (ExampleWeb.Sources.Products)"),
+        loop(
+          "products",
+          [
+            block("card", %{title: "Product", badge: "$0", size: "sm", button_label: "See it"},
+              dynamic: %{
+                title: "name",
+                image: "image_url",
+                text: [field: "description", format: "excerpt", length: 60],
+                badge: [field: "price", before: "$", format: "number", decimals: 0],
+                button_url: "@url"
+              }
+            )
+          ],
+          %{limit: 4, columns: "4", columns_tablet: "2", order_by: "price", order: "desc"}
+        )
+      ],
+      %{gap: "6"},
+      attrs: %{"id" => "dynamic", "label" => "Dynamic content"}
     )
   end
 
