@@ -44,7 +44,17 @@ export const ElementorexEditor = {
   },
 
   updated() {
+    // The labels change with the locale of the editor
+    this.blocks = JSON.parse(this.el.dataset.blocks || "{}")
+    this.labels = JSON.parse(this.el.dataset.labels || "{}")
+    if (this.overlay) {
+      this.overlay.labels = this.labels
+      this.overlay.blocks = this.blocks
+    }
+    this.syncElements()
     this.layout()
+    // While the frame loads again, frameLoaded() and render() catch up
+    if (!this.ready) return
     this.applyPreview()
     this.applySelection()
   },
@@ -57,6 +67,24 @@ export const ElementorexEditor = {
     this.dragger.cleanup()
   },
 
+  // When LiveView renders the whole editor again (a new locale) it may replace
+  // the canvas viewport and frame host: measure and style the current ones.
+  syncElements() {
+    const viewport = this.el.querySelector("[data-exr-viewport]")
+    if (viewport && viewport !== this.viewport) {
+      this.resizeObserver.unobserve(this.viewport)
+      this.viewport = viewport
+      this.resizeObserver.observe(viewport)
+    }
+
+    const frameHost = this.el.querySelector("[data-exr-frame]")
+    if (frameHost && frameHost !== this.frameHost) {
+      this.frameHost = frameHost
+      // the iframe reloads when moved; frameLoaded() picks it up again
+      if (this.iframe && !frameHost.contains(this.iframe)) frameHost.appendChild(this.iframe)
+    }
+  },
+
   push(event, payload = {}) {
     this.pushEventTo(this.el, event, payload)
   },
@@ -67,14 +95,18 @@ export const ElementorexEditor = {
     const iframe = document.createElement("iframe")
     iframe.title = "Canvas"
     iframe.setAttribute("aria-label", "Canvas")
-    iframe.addEventListener("load", () => this.frameLoaded(), { once: true })
+    // Not once: LiveView may move the frame when it renders the whole editor
+    // again (a new locale), and a moved iframe loads its document again.
+    iframe.addEventListener("load", () => this.frameLoaded())
     iframe.srcdoc = canvasDocument(this.config)
     this.frameHost.appendChild(iframe)
     this.iframe = iframe
   },
 
   frameLoaded() {
+    this.frameObserver && this.frameObserver.disconnect()
     this.frameWin = this.iframe.contentWindow
+    this.frameWin.addEventListener("pagehide", () => { this.ready = false })
     this.frameDoc = this.iframe.contentDocument
     this.mount = this.frameDoc.querySelector("[data-exr-mount]") || this.frameDoc.body
     this.docStyle = this.frameDoc.getElementById("exr-doc-css")
@@ -93,7 +125,7 @@ export const ElementorexEditor = {
   },
 
   render({ html, css }) {
-    if (!this.ready) {
+    if (!this.ready || !this.mount || !this.mount.isConnected) {
       this.pending = { html, css }
       return
     }

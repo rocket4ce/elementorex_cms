@@ -370,4 +370,21 @@ defmodule ElementorexCms.EditorTest do
     hook(view, "whatever")
     refute_received {:changed, _}
   end
+
+  test "switching the locale while it runs translates the whole interface" do
+    {view, html} = mount_editor()
+    assert html =~ "Section"
+
+    send(view.pid, {:locale, "pt"})
+    html = render(view)
+    palette = view |> element("[data-exr-palette]") |> render()
+
+    assert html =~ "Salvar"
+    assert palette =~ "Seção"
+    refute palette =~ ">Section<"
+
+    send(view.pid, {:locale, "ja"})
+    assert view |> element("[data-exr-palette]") |> render() =~ "セクション"
+    assert render(view) =~ "保存"
+  end
 end

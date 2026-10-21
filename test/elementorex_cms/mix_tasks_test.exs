@@ -83,6 +83,72 @@ defmodule ElementorexCms.MixTasksTest do
     end)
   end
 
+  describe "gen.locale" do
+    setup do
+      Application.put_env(:elementorex_cms, :blocks, [ElementorexCms.TestBlock])
+
+      Application.put_env(:elementorex_cms, :translations, %{
+        "es" => %{"Pricing plan" => "Plan de precios"}
+      })
+
+      on_exit(fn ->
+        Application.delete_env(:elementorex_cms, :blocks)
+        Application.delete_env(:elementorex_cms, :translations)
+      end)
+    end
+
+    test "a built-in language gets the strings of the app", %{dir: dir} do
+      in_dir(dir, fn ->
+        Mix.Tasks.Elementorex.Gen.Locale.run(~w(es))
+
+        source = assert_valid_elixir("lib/elementorex_cms_web/elementorex_locales/es.ex")
+        assert source =~ "defmodule ElementorexCmsWeb.ElementorexLocales.Es do"
+        assert source =~ ~s(use ElementorexCms.I18n.Locale, locale: "es", name: "Español")
+        # moved from the :translations config
+        assert source =~ ~s("Pricing plan" => "Plan de precios")
+        assert source =~ ~s("Billing period" => nil)
+        # already translated by the library
+        refute source =~ ~s("Link" =>)
+        refute source =~ ~s("Undo" =>)
+
+        [{module, _}] = Code.compile_string(source)
+        assert module.locale() == "es"
+        assert module.dictionary()["Monthly"] == nil
+      end)
+
+      assert Enum.any?(
+               collect_messages(),
+               &(&1 =~ "locales: [ElementorexCmsWeb.ElementorexLocales.Es]")
+             )
+    end
+
+    test "a new language gets every string, --all pre-fills the built-in ones", %{dir: dir} do
+      in_dir(dir, fn ->
+        Mix.Tasks.Elementorex.Gen.Locale.run(["ko", "--name", "한국어"])
+        ko = assert_valid_elixir("lib/elementorex_cms_web/elementorex_locales/ko.ex")
+        assert ko =~ ~s(name: "한국어")
+        assert ko =~ ~s("Undo" => nil)
+        assert ko =~ ~s("Billing period" => nil)
+
+        Mix.Tasks.Elementorex.Gen.Locale.run(~w(pt-BR))
+        pt = assert_valid_elixir("lib/elementorex_cms_web/elementorex_locales/pt_br.ex")
+        assert pt =~ "defmodule ElementorexCmsWeb.ElementorexLocales.PtBr do"
+        assert pt =~ ~s|name: "Português (pt-BR)"|
+        refute pt =~ ~s("Undo" =>)
+
+        Mix.Tasks.Elementorex.Gen.Locale.run(~w(it --all))
+        it = assert_valid_elixir("lib/elementorex_cms_web/elementorex_locales/it.ex")
+        assert it =~ ~s("Undo" => "Annulla")
+        assert it =~ ~s("Billing period" => nil)
+      end)
+    end
+
+    test "rejects bad locales" do
+      assert_raise Mix.Error, fn -> Mix.Tasks.Elementorex.Gen.Locale.run(["Portuguese"]) end
+      assert_raise Mix.Error, fn -> Mix.Tasks.Elementorex.Gen.Locale.run([]) end
+    end
+  end
+
   test "install reports what is missing", %{dir: dir} do
     in_dir(dir, fn ->
       File.mkdir_p!("assets/js")

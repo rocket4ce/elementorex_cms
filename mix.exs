@@ -94,7 +94,8 @@ defmodule ElementorexCms.MixProject do
           ElementorexCms.Canvas,
           ElementorexCms.Media,
           ElementorexCms.Templates,
-          ElementorexCms.I18n
+          ElementorexCms.I18n,
+          ElementorexCms.I18n.Locale
         ]
       ]
     ]

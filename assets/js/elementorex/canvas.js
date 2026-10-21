@@ -148,8 +148,10 @@ export class Overlay {
       return null
     }
 
-    const rect = el.getBoundingClientRect()
+    // A frame that is loading again has no window: nothing to place
     const win = this.doc.defaultView
+    if (!win) return null
+    const rect = el.getBoundingClientRect()
     box.style.left = `${rect.left + win.scrollX}px`
     box.style.top = `${rect.top + win.scrollY}px`
     box.style.width = `${Math.max(rect.width, 2)}px`

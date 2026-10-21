@@ -85,8 +85,9 @@ defmodule ElementorexCms.Renderer do
   HTML of a whole document (its `<style>` included) or of a single node, as a
   string.
 
-  Options: `:mode`, `:registry`, `:data` (like `context/1`) and, for documents,
-  `:class`.
+  Options: `:mode`, `:registry`, `:data` (like `context/1`), `:locale` (the
+  language of the texts the blocks add, see `ElementorexCms.I18n`) and, for
+  documents, `:class`.
   """
   @spec to_html(Document.t() | map(), keyword()) :: String.t()
   def to_html(doc_or_node, opts \\ [])
@@ -101,15 +102,19 @@ defmodule ElementorexCms.Renderer do
       __changed__: nil
     }
 
-    assigns
-    |> ElementorexCms.Components.document()
-    |> to_string_html()
+    ElementorexCms.I18n.with_locale(opts[:locale], fn ->
+      assigns
+      |> ElementorexCms.Components.document()
+      |> to_string_html()
+    end)
   end
 
   def to_html(%{"type" => _} = node, opts) do
-    node
-    |> render_node(context(opts))
-    |> to_string_html()
+    ElementorexCms.I18n.with_locale(opts[:locale], fn ->
+      node
+      |> render_node(context(opts))
+      |> to_string_html()
+    end)
   end
 
   @doc false

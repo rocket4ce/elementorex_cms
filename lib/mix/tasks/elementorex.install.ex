@@ -81,6 +81,7 @@ defmodule Mix.Tasks.Elementorex.Install do
       * your site: <ElementorexCms.Components.document document={...} />
       * a full CMS: mix elementorex.gen.cms Pages Page pages
       * your own blocks: mix elementorex.gen.block Pricing
+      * translations of your blocks: mix elementorex.gen.locale es pt
     """)
   end
 

@@ -27,7 +27,9 @@ with a live canvas that renders your site's own CSS.
   document cannot inject script, markup or global CSS.
 - **Generators**: a whole CMS (`mix elementorex.gen.cms`), blocks, templates,
   and `mix elementorex.install` to check the setup.
-- English and Spanish UI (`ElementorexCms.I18n`), extensible.
+- The interface in English (default), Spanish, Portuguese, German, French,
+  Italian and Japanese (`ElementorexCms.I18n`); `mix elementorex.gen.locale`
+  translates your blocks or adds a language.
 
 ## Installation
 
@@ -107,7 +109,6 @@ Edit them:
   title={@page.title}
   back={~p"/admin/pages"}
   canvas={ElementorexCms.Canvas.new(stylesheets: [~p"/assets/css/app.css"])}
-  locale="es"
 />
 ```
 
@@ -253,18 +254,52 @@ and the rules for class names.
 | `mix elementorex.gen.cms Pages Page pages` | migration, schema, context, admin list, editor page and public page |
 | `mix elementorex.gen.block Pricing` | a block and its test |
 | `mix elementorex.gen.template Marketing` | a module of ready-made sections |
+| `mix elementorex.gen.locale es pt ja` | the strings of your blocks and templates to translate, one module per language |
 | `mix elementorex.install` | nothing: checks the setup and prints what is missing |
+
+## Languages
+
+The editor speaks English unless told otherwise. The library ships `es`, `pt`,
+`de`, `fr`, `it` and `ja`; pick one per editor (and per page, for the texts the
+blocks add themselves, like the countdown units):
+
+```heex
+<.live_component module={ElementorexCms.Editor} id="editor" locale={@locale} ... />
+<ElementorexCms.Components.document document={@page.body} locale={@locale} />
+```
+
+`locale` can change while the editor runs (a language switcher in its
+`:actions` slot). `ElementorexCms.I18n.languages/0` lists `{code, name}` for
+switchers; regional codes fall back to their language (`"pt-BR"` → `"pt"`).
+
+Your blocks and templates are translated like the built-in ones. Generate a
+module per language with every string they have, fill it in and register it:
+
+```bash
+mix elementorex.gen.locale es pt de fr it ja   # your strings, for languages the library ships
+mix elementorex.gen.locale ko --name 한국어      # a new language: the library's strings too
+mix elementorex.gen.locale es --all            # also the library's, to override some
+```
+
+```elixir
+config :elementorex_cms,
+  locales: [MyAppWeb.ElementorexLocales.Es, MyAppWeb.ElementorexLocales.Pt]
+```
+
+Untranslated entries are `nil` and fall back to English. Running the task again
+after adding blocks keeps what is already translated. See `ElementorexCms.I18n`.
 
 ## Configuration
 
 ```elixir
 config :elementorex_cms,
-  locale: "es",                          # default UI language
+  locale: "en",                          # default UI language (default "en")
+  locales: [MyAppWeb.ElementorexLocales.Es], # your translations (mix elementorex.gen.locale)
   blocks: [MyAppWeb.Blocks.Pricing],     # added to the built-in ones
   exclude_blocks: ["video"],             # built-in types to leave out
   templates: [MyAppWeb.EditorTemplates.Marketing],
   time_zone: "America/Santiago",         # of countdown targets (needs a tz database, e.g. :tz)
-  translations: %{"es" => %{"Pricing" => "Precios"}}
+  translations: %{"es" => %{"Pricing" => "Precios"}} # a few strings, win over everything
 ```
 
 ## Security model

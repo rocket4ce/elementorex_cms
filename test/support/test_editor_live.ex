@@ -54,6 +54,9 @@ defmodule ElementorexCms.TestEditorLive do
     {:noreply, update(socket, :saves, &(&1 + 1))}
   end
 
+  # The tests switch the language of the editor while it runs
+  def handle_info({:locale, locale}, socket), do: {:noreply, assign(socket, :locale, locale)}
+
   def handle_info({Editor, "editor", {:change, doc}}, socket) do
     send(socket.assigns.test_pid, {:changed, doc})
     {:noreply, socket}

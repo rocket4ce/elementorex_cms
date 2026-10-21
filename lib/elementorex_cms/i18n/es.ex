@@ -1,7 +1,10 @@
 defmodule ElementorexCms.I18n.Es do
   @moduledoc false
   # Spanish translations of the editor and the built-in blocks (see
-  # ElementorexCms.I18n). Keys are the English strings of the library.
+  # ElementorexCms.I18n). Keys are the English strings of the library: this
+  # dictionary is the reference list of them, every other locale has the same keys.
+
+  use ElementorexCms.I18n.Locale, locale: "es", name: "Español"
 
   @dictionary %{
     # ---- Editor: chrome ----
@@ -612,5 +615,6 @@ defmodule ElementorexCms.I18n.Es do
     "What our customers say" => "Lo que dicen nuestros clientes"
   }
 
+  @impl true
   def dictionary, do: @dictionary
 end

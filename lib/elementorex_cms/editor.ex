@@ -56,7 +56,9 @@ defmodule ElementorexCms.Editor do
     * `templates` - template modules (default: the configured ones)
     * `media`, `media_context` - see `ElementorexCms.Media`
     * `data` - passed to the blocks as `@ctx.data`
-    * `locale` - language of the interface (`"en"`, `"es"`)
+    * `locale` - language of the interface: `"en"` (default), `"es"`, `"pt"`,
+      `"de"`, `"fr"`, `"it"`, `"ja"` or one of your locale modules (see
+      `ElementorexCms.I18n`)
     * `notify_changes` - also send `{:change, document}` on every change
     * `fullscreen` - cover the screen (default `true`)
     * `inline_css` - include the editor stylesheet (default `true`; set it to
@@ -119,6 +121,7 @@ defmodule ElementorexCms.Editor do
      |> assign(
        doc: nil,
        remount_key: nil,
+       locale_epoch: 0,
        selected: nil,
        device: "desktop",
        zoom: "fit",
@@ -178,6 +181,7 @@ defmodule ElementorexCms.Editor do
 
   def update(assigns, socket) do
     I18n.put_locale(assigns[:locale] || I18n.locale())
+    previous_locale = socket.assigns[:locale]
 
     socket =
       socket
@@ -217,13 +221,36 @@ defmodule ElementorexCms.Editor do
         socket
       end
 
+    # A new language: the interface is rendered again (see render/1) and so is
+    # the canvas, which has texts of its own (placeholders, countdown units).
+    socket =
+      if previous_locale not in [nil, socket.assigns.locale] do
+        socket = update(socket, :locale_epoch, &(&1 + 1))
+        if not remount? and connected?(socket), do: push_canvas(socket), else: socket
+      else
+        socket
+      end
+
     {:ok, socket}
   end
 
   @impl true
   def render(assigns) do
     I18n.put_locale(assigns.locale)
-    UI.editor(assigns)
+
+    # Most texts of the interface depend on no assign (and list items only on
+    # their own variables), so change tracking would keep them in the previous
+    # language. These two wrappers are the same but have different fingerprints:
+    # switching between them on a new locale makes LiveView render it all again.
+    if rem(assigns.locale_epoch, 2) == 0 do
+      ~H"""
+      <div class="exr-host" style="display: contents">{UI.editor(assigns)}</div>
+      """
+    else
+      ~H"""
+      <div class="exr-host" style="display: contents" data-exr-relocalized>{UI.editor(assigns)}</div>
+      """
+    end
   end
 
   ## Canvas and selection
