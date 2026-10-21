@@ -22,6 +22,8 @@ config :example, ExampleWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}],
   check_origin: false,
   code_reloader: true,
+  # Recompile the library (a path dependency) together with the app.
+  reloadable_apps: [:example, :elementorex_cms],
   debug_errors: true,
   secret_key_base: "tYjuAzExZgeU8M6Wjf2L8L1l8LWolY5KIBkDJMzcc9sJjMqvIZp55gkB/1IoX9Nr",
   watchers: [
@@ -75,3 +77,13 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Watch the library too, so editing it reloads the browser (see the
+# `elementorex_cms` patterns in runtime.exs).
+library_path = Path.expand("../..", __DIR__)
+
+config :phoenix_live_reload, :dirs, [
+  Path.expand("..", __DIR__),
+  Path.join(library_path, "lib"),
+  Path.join(library_path, "priv/static")
+]

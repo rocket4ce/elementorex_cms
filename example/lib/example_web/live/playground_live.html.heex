@@ -1,0 +1,102 @@
+<Layouts.app
+  flash={@flash}
+  current_scope={assigns[:current_scope]}
+  locale={@locale}
+  width={:full}
+>
+  <div class="mx-auto flex max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Playground: a modal</h1>
+        <p class="text-sm opacity-60">
+          Embedded editor (<code>fullscreen=false</code>), {length(@registry.order) - 1} allowed blocks
+          and a live preview with <code>notify_changes</code>.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <span :if={@dirty?} id="playground-dirty" class="badge badge-warning badge-soft">
+          Unsaved changes
+        </span>
+        <span
+          :if={!@dirty? && @saved_at}
+          id="playground-saved"
+          class="badge badge-success badge-soft"
+        >
+          Saved at {@saved_at} UTC
+        </span>
+      </div>
+    </div>
+
+    <div
+      id="playground-editor-wrap"
+      class="h-[78vh] overflow-hidden rounded-box border border-base-300 shadow-sm"
+    >
+      <.live_component
+        module={ElementorexCms.Editor}
+        id={@editor}
+        document={@initial}
+        title="Black Friday modal"
+        subtitle="In memory only"
+        canvas={@canvas}
+        registry={@registry}
+        media={Example.EditorMedia}
+        data={Example.site_data()}
+        locale={@locale}
+        notify_changes
+        fullscreen={false}
+      >
+        <:status>
+          <span class="exr-pill">{String.upcase(@locale)}</span>
+        </:status>
+        <:actions>
+          <Layouts.language_select id="playground-locale" locale={@locale} />
+          <button id="playground-clear" type="button" class="exr-btn exr-ghost" phx-click="clear">
+            {tr("Empty", @locale)}
+          </button>
+          <button id="playground-reset" type="button" class="exr-btn exr-ghost" phx-click="reset">
+            {tr("Reset", @locale)}
+          </button>
+        </:actions>
+      </.live_component>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <section class="flex flex-col gap-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wide opacity-60">
+          Public preview
+        </h2>
+        <div
+          id="playground-preview"
+          phx-hook="ElementorexRuntime"
+          class="overflow-hidden rounded-box border border-base-300"
+        >
+          <.modal_frame>
+            <ElementorexCms.Components.document
+              document={@document}
+              registry={@registry}
+              data={Example.site_data()}
+              locale={@locale}
+            />
+          </.modal_frame>
+        </div>
+      </section>
+
+      <aside class="flex flex-col gap-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wide opacity-60">
+          <code>ElementorexCms.to_text/1</code>
+        </h2>
+        <p
+          id="playground-text"
+          class="min-h-24 rounded-box bg-base-200 p-4 text-sm leading-relaxed whitespace-pre-line"
+        >
+          {if @text == "", do: "(empty)", else: @text}
+        </p>
+        <p class="text-xs opacity-60">
+          <code>to_html/2</code>
+          renders <strong id="playground-html-size">{@html_size}</strong>
+          bytes.
+        </p>
+      </aside>
+    </div>
+  </div>
+</Layouts.app>

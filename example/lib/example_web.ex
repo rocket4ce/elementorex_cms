@@ -17,7 +17,7 @@ defmodule ExampleWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images uploads favicon.ico robots.txt)
 
   def router do
     quote do
@@ -86,6 +86,8 @@ defmodule ExampleWeb do
       import Phoenix.HTML
       # Core UI components
       import ExampleWeb.CoreComponents
+      # Strings of the editor's chrome in the current language
+      import ExampleWeb.Locale, only: [tr: 2]
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

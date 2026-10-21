@@ -40,6 +40,9 @@ defmodule Example.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:tidewave, "~> 0.9", only: :dev},
+      # The library lives one folder up: this app is its test bench.
+      {:elementorex_cms, path: ".."},
       {:phoenix, "~> 1.8.9"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},

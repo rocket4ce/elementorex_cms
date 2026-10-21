@@ -1,0 +1,13 @@
+<Layouts.app flash={@flash} current_scope={assigns[:current_scope]} locale={@locale} width={:full}>
+  <article
+    id="page-content"
+    phx-hook="ElementorexRuntime"
+    class="mx-auto max-w-6xl px-4 py-10 sm:px-6"
+  >
+    <ElementorexCms.Components.document
+      document={@page.body}
+      data={Example.site_data()}
+      locale={@locale}
+    />
+  </article>
+</Layouts.app>

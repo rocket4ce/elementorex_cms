@@ -35,7 +35,10 @@ if config_env() == :dev do
         ~r"priv/gettext/.*\.po$"E,
         # Router, Controllers, LiveViews and LiveComponents
         ~r"lib/example_web/router\.ex$"E,
-        ~r"lib/example_web/(controllers|live|components)/.*\.(ex|heex)$"E
+        ~r"lib/example_web/(controllers|live|components)/.*\.(ex|heex)$"E,
+        # The library (path dependency): blocks, editor and its stylesheet
+        ~r"elementorex_cms/lib/.*\.ex$"E,
+        ~r"elementorex_cms/priv/static/.*\.css$"E
       ]
     ]
 end

@@ -23,13 +23,16 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/example"
+// The visual editor (ElementorexEditor) and the public runtime (ElementorexRuntime)
+import {hooks as Elementorex} from "elementorex_cms"
+import {initElementorex} from "elementorex_cms/runtime"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ...Elementorex},
 })
 
 // Show progress bar on live navigation and form submits
@@ -39,6 +42,9 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
+
+// Documents rendered by controllers have no hook: start their countdowns here
+document.querySelectorAll("[data-exr-static]").forEach(el => initElementorex(el))
 
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()

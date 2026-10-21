@@ -43,7 +43,15 @@ config :esbuild,
     args:
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
     cd: Path.expand("../assets", __DIR__),
-    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+    env: %{
+      # "../../.." is the folder that contains elementorex_cms, so `import "elementorex_cms"`
+      # resolves to the library next to this app (switch to deps/ when it comes from Hex).
+      "NODE_PATH" => [
+        Path.expand("../../..", __DIR__),
+        Path.expand("../deps", __DIR__),
+        Mix.Project.build_path()
+      ]
+    }
   ]
 
 # Configure tailwind (the version is required)
@@ -65,6 +73,26 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# The visual editor (ElementorexCms). Its interface is in English unless the
+# editor gets another `locale` (see ExampleWeb.Locale).
+config :elementorex_cms,
+  blocks: [
+    ExampleWeb.Blocks.Pricing,
+    ExampleWeb.Blocks.Whatsapp,
+    ExampleWeb.Blocks.Marketing.Callout
+  ],
+  templates: [ExampleWeb.EditorTemplates.Marketing],
+  # Strings of the blocks and templates above, generated with
+  # `mix elementorex.gen.locale es pt de fr it ja`
+  locales: [
+    ExampleWeb.ElementorexLocales.Es,
+    ExampleWeb.ElementorexLocales.Pt,
+    ExampleWeb.ElementorexLocales.De,
+    ExampleWeb.ElementorexLocales.Fr,
+    ExampleWeb.ElementorexLocales.It,
+    ExampleWeb.ElementorexLocales.Ja
+  ]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

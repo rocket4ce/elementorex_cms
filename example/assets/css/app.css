@@ -6,6 +6,9 @@
 @source "../css";
 @source "../js";
 @source "../../lib/example_web";
+/* The blocks of ElementorexCms (one folder up while developing the library;
+   "../../deps/elementorex_cms/lib" when it comes from Hex) */
+@source "../../../../elementorex_cms/lib";
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/example/*/";
 

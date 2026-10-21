@@ -1,0 +1,47 @@
+<Layouts.app flash={@flash} current_scope={assigns[:current_scope]} locale={@locale}>
+  <div class="mx-auto flex max-w-4xl flex-col gap-6">
+    <h1 class="text-2xl font-semibold">Pages</h1>
+
+    <.form
+      for={@form}
+      id="page-form"
+      phx-change="validate"
+      phx-submit="create"
+      class="flex flex-wrap items-end gap-3"
+    >
+      <div class="min-w-64 flex-1">
+        <.input field={@form[:title]} type="text" label="Title" />
+      </div>
+      <div class="min-w-48">
+        <.input field={@form[:slug]} type="text" label="Slug (optional)" />
+      </div>
+      <.button phx-disable-with="Creating…">New page</.button>
+    </.form>
+
+    <div id="pages" phx-update="stream" class="divide-base-200 flex flex-col divide-y">
+      <p id="pages-empty" class="hidden py-8 text-center opacity-60 only:block">No pages yet.</p>
+      <div :for={{id, page} <- @streams.pages} id={id} class="flex items-center gap-3 py-3">
+        <div class="min-w-0 flex-1">
+          <p class="font-medium">{page.title}</p>
+          <p class="text-sm opacity-60">/p/{page.slug} · {page.status}</p>
+        </div>
+        <.link navigate={"/admin/pages/#{page.id}/edit"} class="btn btn-sm">Edit</.link>
+        <.link
+          :if={page.status == :published}
+          href={"/p/#{page.slug}"}
+          target="_blank"
+          class="btn btn-sm btn-ghost"
+        >View</.link>
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost text-error"
+          phx-click="delete"
+          phx-value-id={page.id}
+          data-confirm="Delete this page?"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</Layouts.app>

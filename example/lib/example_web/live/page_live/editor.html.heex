@@ -1,0 +1,35 @@
+<Layouts.app flash={@flash} current_scope={assigns[:current_scope]} locale={@locale} width={:full}>
+  <.live_component
+    module={ElementorexCms.Editor}
+    id={@editor}
+    document={@page.body}
+    title={@page.title}
+    subtitle={"/p/#{@page.slug}"}
+    back={~p"/admin/pages"}
+    canvas={@canvas}
+    media={Example.EditorMedia}
+    media_context={%{page_id: @page.id}}
+    data={Example.site_data()}
+    locale={@locale}
+  >
+    <:status>
+      <span class={["exr-pill", @page.status == :draft && "exr-pill-warn"]}>
+        {tr(if(@page.status == :published, do: "Published", else: "Draft"), @locale)}
+      </span>
+    </:status>
+    <:actions>
+      <Layouts.language_select id="page-editor-locale" locale={@locale} />
+      <.link
+        :if={@page.status == :published}
+        href={~p"/p/#{@page.slug}"}
+        target="_blank"
+        class="exr-btn exr-ghost"
+      >
+        {tr("View", @locale)}
+      </.link>
+      <button type="button" class="exr-btn exr-ghost" phx-click="toggle_publish">
+        {tr(if(@page.status == :published, do: "Unpublish", else: "Publish"), @locale)}
+      </button>
+    </:actions>
+  </.live_component>
+</Layouts.app>
