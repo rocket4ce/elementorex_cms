@@ -219,7 +219,13 @@ defmodule ElementorexCms.Editor do
       |> assign_source(assigns[:source])
       |> then(fn socket ->
         %{sources: sources, doc_source: source} = socket.assigns
-        assign(socket, :templates, Templates.available(assigns[:templates], sources, source))
+
+        templates =
+          assigns[:templates]
+          |> Templates.available(sources, source)
+          |> Templates.usable(socket.assigns.registry)
+
+        assign(socket, :templates, templates)
       end)
 
     remount? = socket.assigns.doc == nil or assigns[:remount_key] != socket.assigns.remount_key

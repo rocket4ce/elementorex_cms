@@ -127,6 +127,13 @@ defmodule ElementorexCms.I18nTest do
       assert I18n.with_locale("ko", fn -> I18n.t("Undo") end) == "Undo"
     end
 
+    test "locale modules that don't exist yet are skipped (before gen.locale creates them)" do
+      Application.put_env(:elementorex_cms, :locales, [MyApp.NotGeneratedYet, Ko])
+
+      assert {"ko", "한국어"} in I18n.languages()
+      assert I18n.with_locale("ko", fn -> I18n.t("Save") end) == "저장"
+    end
+
     test "the :translations config wins and dictionary/1 merges everything" do
       Application.put_env(:elementorex_cms, :locales, [Pt])
       Application.put_env(:elementorex_cms, :translations, %{"pt" => %{"Save" => "Guardar já"}})

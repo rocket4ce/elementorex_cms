@@ -227,7 +227,14 @@ defmodule ElementorexCms.I18n do
   end
 
   # The app's locale modules; later ones win, so they are searched last first.
-  defp app_modules, do: Application.get_env(:elementorex_cms, :locales, [])
+  # Modules that don't exist yet (configured before `mix elementorex.gen.locale`
+  # creates them) are left out.
+  defp app_modules do
+    :elementorex_cms
+    |> Application.get_env(:locales, [])
+    |> Enum.filter(&Code.ensure_loaded?/1)
+  end
+
   defp app_modules(locale), do: app_modules() |> Enum.filter(&(&1.locale() == locale))
 
   defp reject_nil(map), do: for({k, v} <- map, is_binary(v), into: %{}, do: {k, v})

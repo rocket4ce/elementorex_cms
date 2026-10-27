@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 (2026-10-27)
+
+- The editor only offers templates whose blocks are all in its registry
+  (`ElementorexCms.Templates.usable/2`): an editor with fewer blocks
+  (`Registry.new(only: ...)`) no longer shows built-in templates that would
+  insert blocks it can't render.
+- Locale modules listed in `config :elementorex_cms, locales: [...]` that
+  don't exist yet are skipped, so `mix elementorex.gen.locale` can run with
+  the config already in place.
+
+Upgrading from 0.2.0 needs no changes.
+
 ## 0.2.0 (2026-10-21)
 
 - Dynamic content (see the guide): sources (`ElementorexCms.Source`) with an

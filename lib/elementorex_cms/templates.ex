@@ -94,6 +94,27 @@ defmodule ElementorexCms.Templates do
   end
 
   @doc """
+  The templates whose blocks are all in the registry: a registry with fewer
+  blocks (`ElementorexCms.Registry.new(only: ...)`) doesn't offer templates
+  that would insert blocks it can't render.
+  """
+  @spec usable([template()], ElementorexCms.Registry.t() | nil) :: [template()]
+  def usable(templates, nil), do: templates
+
+  def usable(templates, registry) do
+    Enum.filter(templates, fn template ->
+      template.nodes.() |> Enum.all?(&known_types?(&1, registry))
+    end)
+  end
+
+  defp known_types?(%{"type" => type} = node, registry) do
+    ElementorexCms.Registry.fetch(registry, type) != nil and
+      Enum.all?(node["children"] || [], &known_types?(&1, registry))
+  end
+
+  defp known_types?(_node, _registry), do: false
+
+  @doc """
   Templates made from the fields of each source (see `ElementorexCms.Source.role/2`):
   a grid of cards and a list of its items, linked to their page when the
   source has one. With `document_source` (the source of a template for single

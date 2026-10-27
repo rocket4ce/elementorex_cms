@@ -1,6 +1,6 @@
 {
   "name": "elementorex_cms",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Visual drag & drop content editor for Phoenix LiveView. Shipped as plain ES modules inside the elementorex_cms Hex package.",
   "license": "MIT",
   "type": "module",
