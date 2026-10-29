@@ -30,6 +30,7 @@ defmodule ElementorexCms.Editor.UI do
     layout: "Structure",
     basic: "Basic",
     components: "daisyUI",
+    charts: "Charts",
     media: "Media",
     dynamic: "Dynamic",
     advanced: "Advanced"

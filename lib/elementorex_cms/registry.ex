@@ -50,6 +50,11 @@ defmodule ElementorexCms.Registry do
     Blocks.Timeline,
     Blocks.Rating,
     Blocks.Progress,
+    Blocks.Metrics,
+    Blocks.ChartBar,
+    Blocks.ChartLine,
+    Blocks.ChartDonut,
+    Blocks.DataTable,
     Blocks.Avatar,
     Blocks.Chat,
     Blocks.Quote,
@@ -67,7 +72,7 @@ defmodule ElementorexCms.Registry do
     Blocks.FilterSort
   ]
 
-  @categories [:layout, :basic, :components, :media, :dynamic, :advanced]
+  @categories [:layout, :basic, :components, :charts, :media, :dynamic, :advanced]
 
   @doc "Built-in block modules."
   @spec builtin() :: [module()]

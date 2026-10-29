@@ -17,6 +17,11 @@ with a live canvas that renders your site's own CSS.
   stats, steps, countdown, accordion, tabs, timeline, rating, progress, avatar,
   chat, testimonials, carousel, video, mockups, HTML, loop grid, filters for
   visitors (search, choices, ranges, toggles, sort)…
+- **Charts and data**: bar (vertical or horizontal, grouped or stacked, with a
+  target line), line and area, donut and pie charts, tables with bar columns
+  and key figures with trend and tone. They take their data as delimited text
+  any app can generate, and are drawn with SVG and inline styles, without a
+  CSS framework.
 - **Dynamic content**: your Ecto schemas (from `mix phx.gen.live` or your own
   migrations) become collections the editor can list in a *Loop grid*; any prop
   of any block can show a field of the current item (with format, prefix and
@@ -42,7 +47,7 @@ with a live canvas that renders your site's own CSS.
 # mix.exs
 def deps do
   [
-    {:elementorex_cms, "~> 0.2"}
+    {:elementorex_cms, "~> 0.3"}
   ]
 end
 ```

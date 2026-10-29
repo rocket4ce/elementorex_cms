@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- Charts and data blocks, in a new *Charts* category of the palette:
+  - *Bar chart*: columns or horizontal bars of one or more series, grouped or
+    stacked, with values on the bars and a target line.
+  - *Line chart*: lines or areas, points, dashed series (the plan against the
+    actual) and a target line; empty cells leave a gap.
+  - *Donut chart*: donut or pie of the parts of a whole, with their shares.
+  - *Table*: rows and columns, numbers aligned to the right and a column
+    drawn as bars.
+  - *Metrics*: key figures with a note, a trend arrow and a tone.
+- Charts and tables read delimited text (`ElementorexCms.Chart`): the first
+  row names the columns, the first column holds the categories; `;`, `,` or
+  tab, with quotes. They are drawn with SVG and inline styles, so they don't
+  need daisyUI or any CSS framework, and series colors can be themed with
+  `--exr-chart-1` ... `--exr-chart-8`.
+- Translations of the new blocks in every built-in language.
+
+Upgrading from 0.2.x needs no changes: the new blocks are added to the
+default registry (leave them out with `exclude_blocks`).
+
 ## 0.2.1 (2026-10-27)
 
 - The editor only offers templates whose blocks are all in its registry
